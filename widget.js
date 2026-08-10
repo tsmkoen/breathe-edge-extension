@@ -134,12 +134,89 @@
   });
 
   // --- tekenen ---
+  // pictogram-helpers (duplicaat van icon-renderer.js — houd synchroon)
+  function roundRectPath(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+  function symbolBackground(color) {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(CANVAS / 2, CANVAS / 2, CANVAS / 2 - Math.max(1, CANVAS * 0.05), 0, Math.PI * 2);
+    ctx.fill();
+  }
+  function drawDrop(color) {
+    ctx.fillStyle = color;
+    const r = CANVAS * 0.3;
+    ctx.beginPath();
+    ctx.moveTo(CANVAS / 2, CANVAS / 2 - r * 1.15);
+    ctx.bezierCurveTo(CANVAS / 2 + r * 0.85, CANVAS / 2 - r * 0.25, CANVAS / 2 + r * 0.7, CANVAS / 2 + r * 0.65, CANVAS / 2, CANVAS / 2 + r * 0.75);
+    ctx.bezierCurveTo(CANVAS / 2 - r * 0.7, CANVAS / 2 + r * 0.65, CANVAS / 2 - r * 0.85, CANVAS / 2 - r * 0.25, CANVAS / 2, CANVAS / 2 - r * 1.15);
+    ctx.closePath();
+    ctx.fill();
+  }
+  function drawPerson(color) {
+    ctx.fillStyle = color;
+    const r = CANVAS * 0.3;
+    ctx.beginPath();
+    ctx.arc(CANVAS / 2, CANVAS / 2 - r * 0.45, r * 0.32, 0, Math.PI * 2);
+    ctx.fill();
+    roundRectPath(CANVAS / 2 - r * 0.38, CANVAS / 2 - r * 0.05, r * 0.76, r * 0.95, r * 0.2);
+    ctx.fill();
+  }
+  function drawEye(bgColor) {
+    const r = CANVAS * 0.3;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.ellipse(CANVAS / 2, CANVAS / 2, r * 0.85, r * 0.52, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = bgColor;
+    ctx.beginPath();
+    ctx.arc(CANVAS / 2, CANVAS / 2, r * 0.22, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  function drawPause(color) {
+    ctx.fillStyle = color;
+    const r = CANVAS * 0.28;
+    ctx.fillRect(CANVAS / 2 - r * 0.75, CANVAS / 2 - r * 0.85, r * 0.5, r * 1.7);
+    ctx.fillRect(CANVAS / 2 + r * 0.25, CANVAS / 2 - r * 0.85, r * 0.5, r * 1.7);
+  }
+
   function draw(now) {
     const pal = PALETTES[settings.colors === 'soft' ? 'soft' : 'default'];
-    const { phase, progress } = cycle.phaseAt(now);
     ctx.clearRect(0, 0, CANVAS, CANVAS);
     const cx = CANVAS / 2;
     const cy = CANVAS / 2;
+
+    // herinnerings-pictogrammen: 💧 water, 🧍 opstaan, 👀 ogen, ⏸ pauze
+    if (waterDue) {
+      symbolBackground(pal.water);
+      drawDrop('#ffffff');
+      return;
+    }
+    if (standDue) {
+      symbolBackground(pal.stand);
+      drawPerson('#ffffff');
+      return;
+    }
+    if (eyeDue) {
+      symbolBackground(pal.eye);
+      drawEye(pal.eye);
+      return;
+    }
+    if (paused) {
+      symbolBackground(pal.paused);
+      drawPause('#ffffff');
+      return;
+    }
+
+    // ademhalingsring
+    const { phase, progress } = cycle.phaseAt(now);
     const stroke = CANVAS * 0.1;
     const radius = CANVAS / 2 - CANVAS * 0.07;
     const mid = radius - stroke / 2;
@@ -147,30 +224,17 @@
     ctx.lineWidth = stroke;
     ctx.lineCap = 'round';
 
-    if (remind && !paused) {
+    if (remind) {
       ctx.strokeStyle = pal.halo;
       ctx.beginPath();
       ctx.arc(cx, cy, mid + stroke * 0.9, 0, Math.PI * 2);
       ctx.stroke();
     }
 
-    // achtergrondring: gekleurd bij herinneringen (prioriteit water > opstaan > ogen)
-    let ringColor = pal.track;
-    if (waterDue) ringColor = pal.water;
-    else if (standDue) ringColor = pal.stand;
-    else if (eyeDue) ringColor = pal.eye;
-    ctx.strokeStyle = ringColor;
+    ctx.strokeStyle = pal.track;
     ctx.beginPath();
     ctx.arc(cx, cy, mid, 0, Math.PI * 2);
     ctx.stroke();
-
-    if (paused) {
-      ctx.fillStyle = pal.paused;
-      ctx.beginPath();
-      ctx.arc(cx, cy, CANVAS * 0.09, 0, Math.PI * 2);
-      ctx.fill();
-      return;
-    }
 
     // voortgangsboog (kleur per fase)
     const color = phase === 'hold' ? pal.hold : phase === 'inhale' ? pal.inhale : pal.exhale;

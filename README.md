@@ -34,11 +34,12 @@ Een persoonlijke extensie voor Microsoft Edge (en Chrome) waarmee je **discreet 
 - Zelfde patroon, rechtsonder, **versleepbaar** — de positie wordt **onthouden** voor elke nieuwe pagina
 - **Klik** = pauzeren/hervatten — **behalve** wanneer de water-reminder actief is: dan is klik = *"gedronken"* bevestigen
 
-**Herinneringen:**
-- 💧 **Water:** na het ingestelde interval wordt het icoon én de widget **rood** + tooltip *"Tijd voor een glas water"*. Klik op de rode widget om te bevestigen; daarna wordt alles weer normaal. Blijft rood tot je bevestigt.
-- 🧍 **Opstaan:** na het ingestelde interval wordt het icoon én de widget **teal** + tooltip *"Tijd om even op te staan en te bewegen"*. Klik op de teal widget om te bevestigen.
-- 👀 **Ogen (20-20-20):** na het ingestelde interval wordt het icoon **violet** + tooltip *"Kijk 20 seconden in de verte"*. Blijft violet staan tot je op de violette widget klikt = "weggekeken" — zo mis je het niet.
-- ⏰ **Adem:** na het ingestelde interval een subtiele lichte kring rond het icoon, 1 minuut lang + tooltip *"Tijd voor een paar rustige ademhalingen"*. Geen geluid, geen popup.
+**Herinneringen (pictogrammen — geen kleurcode nodig):**
+- 💧 **Water:** het icoon én de widget worden een **rode druppel** + tooltip *"Tijd voor een glas water"*. Klik op de rode druppel-widget om te bevestigen. Blijft staan tot je bevestigt.
+- 🧍 **Opstaan:** het icoon én de widget worden een **teal mensje** + tooltip *"Tijd om even op te staan en te bewegen"*. Klik op de teal mensje-widget om te bevestigen.
+- 👀 **Ogen (20-20-20):** het icoon én de widget worden een **violet oog** + tooltip *"Kijk 20 seconden in de verte"*. Blijft staan tot je op de violette oog-widget klikt = "weggekeken".
+- ⏸ **Pauze:** grijs icoon met pauze-balkjes. Klik om te hervatten.
+- ⏰ **Adem:** subtiele lichte kring rond het ademhalingsicoon, 1 minuut lang. Geen geluid, geen popup.
 
 ## Opties (rechtsklik op icoon → Opties)
 
@@ -57,7 +58,7 @@ Een persoonlijke extensie voor Microsoft Edge (en Chrome) waarmee je **discreet 
 
 Wijzigingen zijn **direct actief** — geen herladen nodig.
 
-> 💡 **Kleuren op het icoon:** rood = water, teal = opstaan, violet = ogen (20-20-20), amber = vasthouden, groen = inademen, blauw = uitademen.
+> 💡 **Pictogrammen:** 💧 rode druppel = water, 🧍 teal mensje = opstaan, 👀 violet oog = ogen (20-20-20), ⏸ grijs = pauze — de vorm vertelt wat je moet doen, kleur is enkel een extra hint.
 
 ## Technisch
 
