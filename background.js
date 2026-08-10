@@ -198,9 +198,18 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 });
 
 // --- levenscyclus ---
-chrome.runtime.onInstalled.addListener(() => {
+chrome.runtime.onInstalled.addListener((details) => {
   ensureOffscreen();
   armFallback();
+  // Migratie (v1.6.0): widget in de pagina staat standaard uit — alles loopt
+  // via het toolbar-icoon. Zet bestaande installaties ook om.
+  if (details.reason === 'install' || details.reason === 'update') {
+    chrome.storage.local.get('settings').then((v) => {
+      const s = { ...DEFAULT_SETTINGS, ...(v.settings || {}) };
+      s.widgetEnabled = false;
+      chrome.storage.local.set({ settings: s });
+    });
+  }
 });
 chrome.runtime.onStartup.addListener(() => {
   ensureOffscreen();
@@ -210,13 +219,19 @@ chrome.runtime.onStartup.addListener(() => {
 // keepalive: wekt de SW periodiek en herstelt de fallback-lus na slaap
 chrome.alarms.create('breathe-keepalive', { periodInMinutes: 0.5 });
 
-// klik op het toolbar-icoon = pauzeren/hervatten (geen popup)
+// Klik op het toolbar-icoon (geen popup):
+// - bij een actieve herinnering = bevestigen (water > opstaan > ogen)
+// - anders = pauzeren/hervatten
 chrome.action.onClicked.addListener(() => {
-  togglePause();
-});
-
-function togglePause() {
-  chrome.storage.local.get('paused').then((v) => {
-    chrome.storage.local.set({ paused: !v.paused });
+  chrome.storage.local.get(['paused', 'waterDue', 'standDue', 'eyeDue']).then((v) => {
+    if (v.waterDue) {
+      chrome.storage.local.set({ waterDue: false }); // "gedronken"
+    } else if (v.standDue) {
+      chrome.storage.local.set({ standDue: false }); // "opgestaan"
+    } else if (v.eyeDue) {
+      chrome.storage.local.set({ eyeDue: false }); // "weggekeken"
+    } else {
+      chrome.storage.local.set({ paused: !v.paused });
+    }
   });
-}
+});

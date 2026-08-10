@@ -4,7 +4,7 @@
     inhaleSec: 4,
     holdSec: 0,
     exhaleSec: 6,
-    widgetEnabled: true,
+    widgetEnabled: false,
     widgetSize: 26,
     colors: 'default',
     waterReminderMin: 60,

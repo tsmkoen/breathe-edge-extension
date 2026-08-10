@@ -27,17 +27,19 @@ Een persoonlijke extensie voor Microsoft Edge (en Chrome) waarmee je **discreet 
 
 **Toolbar-icoon** (geanimeerd via offscreen document — blijft draaien):
 - Groen vult zich bij inademen, (amber bij vasthouden), blauw leegt zich bij uitademen
-- **Klik** = pauzeren / hervatten
-- Hover toont de fase en herinneringen
+- **Klik** = afhankelijk van de situatie:
+  - bij een **herinnering** (druppel/mensje/oog): klik **bevestigt** de herinnering
+  - anders: **pauzeren/hervatten**
+- Hover toont de fase en herinneringen (met uitleg wat een klik doet)
 
-**Widget in de pagina** (klein, discreet):
-- Zelfde patroon, rechtsonder, **versleepbaar** — de positie wordt **onthouden** voor elke nieuwe pagina
-- **Klik** = pauzeren/hervatten — **behalve** wanneer de water-reminder actief is: dan is klik = *"gedronken"* bevestigen
+**Widget in de pagina** (optioneel, **standaard uit** — alles werkt via het toolbar-icoon):
+- Zelfde pictogrammen, rechtsonder, versleepbaar (positie wordt onthouden)
+- Aan te zetten in de opties
 
 **Herinneringen (pictogrammen — geen kleurcode nodig):**
-- 💧 **Water:** het icoon én de widget worden een **rode druppel** + tooltip *"Tijd voor een glas water"*. Klik op de rode druppel-widget om te bevestigen. Blijft staan tot je bevestigt.
-- 🧍 **Opstaan:** het icoon én de widget worden een **teal mensje** + tooltip *"Tijd om even op te staan en te bewegen"*. Klik op de teal mensje-widget om te bevestigen.
-- 👀 **Ogen (20-20-20):** het icoon én de widget worden een **violet oog** + tooltip *"Kijk 20 seconden in de verte"*. Blijft staan tot je op de violette oog-widget klikt = "weggekeken".
+- 💧 **Water:** het toolbar-icoon wordt een **rode druppel** + tooltip *"Tijd voor een glas water"*. **Klik op het icoon** om te bevestigen. Blijft staan tot je bevestigt.
+- 🧍 **Opstaan:** het toolbar-icoon wordt een **teal mensje** + tooltip *"Tijd om even op te staan en te bewegen"*. **Klik op het icoon** om te bevestigen.
+- 👀 **Ogen (20-20-20):** het toolbar-icoon wordt een **violet oog** + tooltip *"Kijk 20 seconden in de verte"*. **Klik op het icoon** = "weggekeken".
 - ⏸ **Pauze:** grijs icoon met pauze-balkjes. Klik om te hervatten.
 - ⏰ **Adem:** subtiele lichte kring rond het ademhalingsicoon, 1 minuut lang. Geen geluid, geen popup.
 
@@ -48,7 +50,7 @@ Een persoonlijke extensie voor Microsoft Edge (en Chrome) waarmee je **discreet 
 | Inademen (s) | Duur van de inademing (1–30) |
 | Vasthouden (s) | Pauze na inademen; 0 = uit. Bv. **4-4-4-4** = box breathing |
 | Uitademen (s) | Duur van de uitademing (1–30). Bv. **4-6** = kalmerende verlengde uitademing |
-| Widget tonen | Widget in de pagina aan/uit |
+| Widget tonen | Widget in de pagina (rechtsonder) — **standaard uit** |
 | Grootte | Klein / medium / groot (20/26/34 px) |
 | Kleuren | Standaard of **zacht/rustig** palet |
 | Adem-herinnering | Uit / 10 / 20 / 30 / 45 / 60 min |

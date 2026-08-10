@@ -9,7 +9,7 @@
   // --- defaults + formule (duplicaat van cycle.js; content scripts kunnen geen modules laden) ---
   const DEFAULTS = {
     inhaleSec: 4, holdSec: 0, exhaleSec: 6,
-    widgetEnabled: true, widgetSize: 26, colors: 'default',
+    widgetEnabled: false, widgetSize: 26, colors: 'default',
     waterReminderMin: 0, breatheReminderMin: 0, eyeReminderMin: 20, standReminderMin: 60,
   };
   function makeCycle(s) {
@@ -117,6 +117,7 @@
     }
     applySettings();
     updateTitle();
+    mount();
   });
 
   chrome.storage.onChanged.addListener((changes, area) => {
@@ -124,6 +125,8 @@
     if (changes.settings) {
       settings = { ...DEFAULTS, ...changes.settings.newValue };
       applySettings();
+      if (settings.widgetEnabled) mount();
+      else unmount();
     }
     if (changes.paused) paused = !!changes.paused.newValue;
     if (changes.waterDue) waterDue = !!changes.waterDue.newValue;
@@ -256,15 +259,24 @@
   }
 
   function loop(now) {
+    if (!mounted) return;
     draw(now);
     requestAnimationFrame(loop);
   }
 
-  // --- widget aan/uit ---
-  if (settings.widgetEnabled) {
+  // --- widget aan/uit (op basis van opgeslagen instelling) ---
+  let mounted = false;
+  function mount() {
+    if (mounted || !settings.widgetEnabled) return;
+    mounted = true;
     (document.body || document.documentElement).appendChild(host);
     requestAnimationFrame(loop);
     updateTitle();
+  }
+  function unmount() {
+    if (!mounted) return;
+    mounted = false;
+    if (host.parentNode) host.parentNode.removeChild(host);
   }
 
   // --- slepen + klik ---

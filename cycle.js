@@ -5,7 +5,7 @@ export const DEFAULT_SETTINGS = {
   inhaleSec: 4,
   holdSec: 0,
   exhaleSec: 6,
-  widgetEnabled: true,
+  widgetEnabled: false, // widget in de pagina: standaard UIT (alles via toolbar-icoon)
   widgetSize: 26, // px
   colors: 'default', // 'default' | 'soft'
   waterReminderMin: 0, // 0 = uit

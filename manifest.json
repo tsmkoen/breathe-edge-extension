@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Breathe — 4/6 ademhaling",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "Ademhalingsoefening in je werkbalk én in de pagina: 4 seconden inademen (groene cirkel loopt op), 6 seconden uitademen (blauwe cirkel loopt af). Continue loop, discreet en verplaatsbaar.",
   "icons": {
     "16": "icons/icon16.png",
