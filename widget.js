@@ -10,7 +10,7 @@
   const DEFAULTS = {
     inhaleSec: 4, holdSec: 0, exhaleSec: 6,
     widgetEnabled: true, widgetSize: 26, colors: 'default',
-    waterReminderMin: 0, breatheReminderMin: 0,
+    waterReminderMin: 0, breatheReminderMin: 0, eyeReminderMin: 20, standReminderMin: 60,
   };
   function makeCycle(s) {
     const inhaleMs = Math.max(1, Math.round(s.inhaleSec)) * 1000;
@@ -29,8 +29,8 @@
   }
   // duplicaat van de kleurenpaletten in icon-renderer.js — houd synchroon
   const PALETTES = {
-    default: { inhale: '#22c55e', exhale: '#3b82f6', hold: '#f59e0b', water: '#ef4444', paused: '#9ca3af', track: 'rgba(128,128,128,0.30)', halo: 'rgba(255,255,255,0.45)' },
-    soft: { inhale: '#7fb69a', exhale: '#8ab4d8', hold: '#e2c07e', water: '#e08a8a', paused: '#b0b0b0', track: 'rgba(128,128,128,0.24)', halo: 'rgba(255,255,255,0.35)' },
+    default: { inhale: '#22c55e', exhale: '#3b82f6', hold: '#f59e0b', water: '#ef4444', stand: '#14b8a6', eye: '#8b5cf6', paused: '#9ca3af', track: 'rgba(128,128,128,0.30)', halo: 'rgba(255,255,255,0.45)' },
+    soft: { inhale: '#7fb69a', exhale: '#8ab4d8', hold: '#e2c07e', water: '#e08a8a', stand: '#7fc4b8', eye: '#a89ad4', paused: '#b0b0b0', track: 'rgba(128,128,128,0.24)', halo: 'rgba(255,255,255,0.35)' },
   };
 
   const CANVAS = 96; // interne resolutie (scherp op elk scherm)
@@ -39,6 +39,8 @@
   let paused = false;
   let waterDue = false;
   let remind = false;
+  let eyeDue = false;
+  let standDue = false;
   let cycle = makeCycle(settings);
   let lastTitleKey = '';
 
@@ -77,6 +79,12 @@
     if (waterDue) {
       key = 'water';
       title = '💧 Tijd voor een glas water — klik om te bevestigen';
+    } else if (standDue) {
+      key = 'stand';
+      title = '🧍 Tijd om even op te staan en te bewegen — klik om te bevestigen';
+    } else if (eyeDue) {
+      key = 'eye';
+      title = '👀 20-20-20: kijk 20 seconden in de verte';
     } else if (paused) {
       key = 'paused';
       title = 'Breathe — gepauzeerd (klik om te hervatten)';
@@ -94,11 +102,13 @@
   }
 
   // --- state uit storage (content scripts mogen storage wél gebruiken) ---
-  chrome.storage.local.get(['settings', 'paused', 'waterDue', 'remind', 'widgetPos']).then((v) => {
+  chrome.storage.local.get(['settings', 'paused', 'waterDue', 'remind', 'eyeDue', 'standDue', 'widgetPos']).then((v) => {
     if (v.settings) settings = { ...DEFAULTS, ...v.settings };
     paused = !!v.paused;
     waterDue = !!v.waterDue;
     remind = !!v.remind;
+    eyeDue = !!v.eyeDue;
+    standDue = !!v.standDue;
     if (v.widgetPos) {
       wrap.style.right = 'auto';
       wrap.style.bottom = 'auto';
@@ -118,6 +128,8 @@
     if (changes.paused) paused = !!changes.paused.newValue;
     if (changes.waterDue) waterDue = !!changes.waterDue.newValue;
     if (changes.remind) remind = !!changes.remind.newValue;
+    if (changes.eyeDue) eyeDue = !!changes.eyeDue.newValue;
+    if (changes.standDue) standDue = !!changes.standDue.newValue;
     updateTitle();
   });
 
@@ -142,8 +154,12 @@
       ctx.stroke();
     }
 
-    // achtergrondring: rood bij water-reminder
-    ctx.strokeStyle = waterDue ? pal.water : pal.track;
+    // achtergrondring: gekleurd bij herinneringen (prioriteit water > opstaan > ogen)
+    let ringColor = pal.track;
+    if (waterDue) ringColor = pal.water;
+    else if (standDue) ringColor = pal.stand;
+    else if (eyeDue) ringColor = pal.eye;
+    ctx.strokeStyle = ringColor;
     ctx.beginPath();
     ctx.arc(cx, cy, mid, 0, Math.PI * 2);
     ctx.stroke();
@@ -232,6 +248,9 @@
     } else if (waterDue) {
       // rode widget = water-reminder actief: klik bevestigt "gedronken"
       chrome.runtime.sendMessage({ type: 'waterDrunk' }).catch?.(() => {});
+    } else if (standDue) {
+      // teal widget = opsta-reminder actief: klik bevestigt "opgestaan"
+      chrome.runtime.sendMessage({ type: 'standDone' }).catch?.(() => {});
     } else {
       chrome.runtime.sendMessage({ type: 'togglePause' }).catch?.(() => {});
     }

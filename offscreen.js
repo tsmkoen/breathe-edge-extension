@@ -14,6 +14,8 @@ let state = {
   paused: false,
   waterDue: false,
   remind: false,
+  eyeDue: false,
+  standDue: false,
   settings: { ...DEFAULT_SETTINGS },
 };
 let cycleCache = null;
@@ -29,6 +31,8 @@ function applyState(s) {
   state.paused = !!s.paused;
   state.waterDue = !!s.waterDue;
   state.remind = !!s.remind;
+  state.eyeDue = !!s.eyeDue;
+  state.standDue = !!s.standDue;
   if (s.settings) {
     state.settings = { ...DEFAULT_SETTINGS, ...s.settings };
     cycleCache = null;

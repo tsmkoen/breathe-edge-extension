@@ -10,6 +10,8 @@ export const DEFAULT_SETTINGS = {
   colors: 'default', // 'default' | 'soft'
   waterReminderMin: 0, // 0 = uit
   breatheReminderMin: 0, // 0 = uit
+  eyeReminderMin: 20, // 20-20-20 oogregel: 0 = uit
+  standReminderMin: 60, // opsta-herinnering: 0 = uit
 };
 
 /** Bouwt een cyclus op basis van instellingen (seconden). */

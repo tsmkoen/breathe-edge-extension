@@ -9,6 +9,8 @@
     colors: 'default',
     waterReminderMin: 60,
     breatheReminderMin: 0,
+    eyeReminderMin: 20,
+    standReminderMin: 60,
   };
 
   const $ = (id) => document.getElementById(id);
@@ -32,6 +34,8 @@
     if (colorRadio) colorRadio.checked = true;
     $('breatheReminderMin').value = String(s.breatheReminderMin);
     $('waterReminderMin').value = String(s.waterReminderMin);
+    $('eyeReminderMin').value = String(s.eyeReminderMin);
+    $('standReminderMin').value = String(s.standReminderMin);
   });
 
   $('save').addEventListener('click', () => {
@@ -44,6 +48,8 @@
       colors: document.querySelector('input[name="colors"]:checked')?.value || 'default',
       breatheReminderMin: parseInt($('breatheReminderMin').value, 10) || 0,
       waterReminderMin: parseInt($('waterReminderMin').value, 10) || 0,
+      eyeReminderMin: parseInt($('eyeReminderMin').value, 10) || 0,
+      standReminderMin: parseInt($('standReminderMin').value, 10) || 0,
     };
     chrome.storage.local.set({ settings }).then(() => {
       showStatus('Opgeslagen ✓ — wijzigingen zijn direct actief.');

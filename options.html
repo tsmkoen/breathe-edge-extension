@@ -110,14 +110,33 @@
     <div class="row">
       <label for="waterReminderMin">Water-herinnering (icoon wordt rood)</label>
       <select id="waterReminderMin">
-        <option value="0" selected>Uit</option>
+        <option value="0">Uit</option>
         <option value="30">Elke 30 minuten</option>
         <option value="45">Elke 45 minuten</option>
         <option value="60" selected>Elk uur</option>
         <option value="90">Elke 90 minuten</option>
       </select>
     </div>
-    <p class="hint">Bij water: klik op de rode widget om "gedronken" te bevestigen. Bij adem: een korte subtiele kring rond het icoon, 1 minuut lang.</p>
+    <div class="row">
+      <label for="eyeReminderMin">Oog-herinnering — 20-20-20 (icoon wordt violet)</label>
+      <select id="eyeReminderMin">
+        <option value="0">Uit</option>
+        <option value="20" selected>Elke 20 minuten</option>
+        <option value="30">Elke 30 minuten</option>
+        <option value="45">Elke 45 minuten</option>
+        <option value="60">Elk uur</option>
+      </select>
+    </div>
+    <div class="row">
+      <label for="standReminderMin">Opsta-herinnering (icoon wordt teal)</label>
+      <select id="standReminderMin">
+        <option value="0">Uit</option>
+        <option value="30">Elke 30 minuten</option>
+        <option value="60" selected>Elk uur</option>
+        <option value="90">Elke 90 minuten</option>
+      </select>
+    </div>
+    <p class="hint">💧 Water: klik op de rode widget = "gedronken". 🧍 Opstaan: klik op de teal widget = "opgestaan". 👀 Ogen: verdwijnt vanzelf na ~25s (even in de verte kijken). ⏰ Adem: korte subtiele kring, 1 minuut.</p>
   </div>
 
   <div>

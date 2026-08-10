@@ -9,6 +9,8 @@ export const PALETTES = {
     exhale: '#3b82f6',
     hold: '#f59e0b',
     water: '#ef4444',
+    stand: '#14b8a6',
+    eye: '#8b5cf6',
     paused: '#9ca3af',
     track: 'rgba(128, 128, 128, 0.35)',
     halo: 'rgba(255, 255, 255, 0.45)',
@@ -18,6 +20,8 @@ export const PALETTES = {
     exhale: '#8ab4d8',
     hold: '#e2c07e',
     water: '#e08a8a',
+    stand: '#7fc4b8',
+    eye: '#a89ad4',
     paused: '#b0b0b0',
     track: 'rgba(128, 128, 128, 0.28)',
     halo: 'rgba(255, 255, 255, 0.35)',
@@ -52,8 +56,12 @@ export function drawIcon(ctx, size, state) {
     ctx.stroke();
   }
 
-  // achtergrondring: rood wanneer er water gedronken moet worden
-  ctx.strokeStyle = state.waterDue ? pal.water : pal.track;
+  // achtergrondring: gekleurd bij herinneringen (prioriteit water > opstaan > ogen)
+  let ringColor = pal.track;
+  if (state.waterDue) ringColor = pal.water;
+  else if (state.standDue) ringColor = pal.stand;
+  else if (state.eyeDue) ringColor = pal.eye;
+  ctx.strokeStyle = ringColor;
   ctx.beginPath();
   ctx.arc(cx, cy, radius, 0, Math.PI * 2);
   ctx.stroke();
@@ -93,6 +101,8 @@ export function renderImageData(state) {
 /** Tooltip-tekst op basis van de huidige toestand. */
 export function titleFor(state) {
   if (state.waterDue) return '💧 Tijd voor een glas water — klik op de widget om te bevestigen';
+  if (state.standDue) return '🧍 Tijd om even op te staan en te bewegen — klik op de widget om te bevestigen';
+  if (state.eyeDue) return '👀 20-20-20: kijk 20 seconden in de verte';
   if (state.paused) return 'Breathe — gepauzeerd (klik om te hervatten)';
   if (state.remind) return 'Breathe — tijd voor een paar rustige ademhalingen';
   const c = state.cycle || {};

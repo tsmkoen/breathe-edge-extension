@@ -13,11 +13,14 @@ const OFFSCREEN_URL = 'offscreen.html';
 const FALLBACK_DELAY_MS = 3000;
 const FALLBACK_TICK_MS = 50;
 const REMIND_DURATION_MS = 60000; // adem-reminder zichtbaar gedurende 1 minuut
+const EYE_DURATION_MS = 25000; // oog-herinnering (20-20-20) zichtbaar ~25s
 
 let settings = { ...DEFAULT_SETTINGS };
 let paused = false;
 let waterDue = false;
 let remind = false;
+let eyeDue = false;
+let standDue = false;
 let gotFrame = false;
 let swLoopTimer = null;
 let cycleCache = null;
@@ -28,18 +31,20 @@ function getCycle() {
   return cycleCache;
 }
 function currentState() {
-  return { paused, waterDue, remind, settings, cycle: getCycle() };
+  return { paused, waterDue, remind, eyeDue, standDue, settings, cycle: getCycle() };
 }
 function broadcastState() {
-  chrome.runtime.sendMessage({ type: 'state', paused, waterDue, remind, settings }).catch?.(() => {});
+  chrome.runtime.sendMessage({ type: 'state', paused, waterDue, remind, eyeDue, standDue, settings }).catch?.(() => {});
 }
 
 // --- state laden + wijzigingen volgen ---
-chrome.storage.local.get(['settings', 'paused', 'waterDue', 'remind']).then((v) => {
+chrome.storage.local.get(['settings', 'paused', 'waterDue', 'remind', 'eyeDue', 'standDue']).then((v) => {
   if (v.settings) settings = { ...DEFAULT_SETTINGS, ...v.settings };
   paused = !!v.paused;
   waterDue = !!v.waterDue;
   remind = !!v.remind;
+  eyeDue = !!v.eyeDue;
+  standDue = !!v.standDue;
   cycleCache = null;
   syncAlarms();
 });
@@ -65,6 +70,14 @@ chrome.storage.onChanged.addListener((changes, area) => {
     remind = !!changes.remind.newValue;
     dirty = true;
   }
+  if (changes.eyeDue) {
+    eyeDue = !!changes.eyeDue.newValue;
+    dirty = true;
+  }
+  if (changes.standDue) {
+    standDue = !!changes.standDue.newValue;
+    dirty = true;
+  }
   if (dirty) broadcastState();
 });
 
@@ -77,6 +90,14 @@ function syncAlarms() {
   chrome.alarms.clear('breathe-remind');
   if (settings.breatheReminderMin > 0) {
     chrome.alarms.create('breathe-remind', { periodInMinutes: settings.breatheReminderMin });
+  }
+  chrome.alarms.clear('breathe-eye');
+  if (settings.eyeReminderMin > 0) {
+    chrome.alarms.create('breathe-eye', { periodInMinutes: settings.eyeReminderMin });
+  }
+  chrome.alarms.clear('breathe-stand');
+  if (settings.standReminderMin > 0) {
+    chrome.alarms.create('breathe-stand', { periodInMinutes: settings.standReminderMin });
   }
 }
 
@@ -91,6 +112,13 @@ chrome.alarms.onAlarm.addListener((alarm) => {
     chrome.alarms.create('breathe-remind-off', { when: Date.now() + REMIND_DURATION_MS });
   } else if (alarm.name === 'breathe-remind-off') {
     chrome.storage.local.set({ remind: false });
+  } else if (alarm.name === 'breathe-eye') {
+    chrome.storage.local.set({ eyeDue: true });
+    chrome.alarms.create('breathe-eye-off', { when: Date.now() + EYE_DURATION_MS });
+  } else if (alarm.name === 'breathe-eye-off') {
+    chrome.storage.local.set({ eyeDue: false });
+  } else if (alarm.name === 'breathe-stand') {
+    chrome.storage.local.set({ standDue: true });
   }
 });
 
@@ -158,11 +186,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     const st = { ...currentState(), phase: msg.phase, progress: msg.progress };
     chrome.action.setTitle({ title: titleFor(st) }).catch?.(() => {});
   } else if (msg?.type === 'getState') {
-    sendResponse({ paused, waterDue, remind, settings });
+    sendResponse({ paused, waterDue, remind, eyeDue, standDue, settings });
   } else if (msg?.type === 'togglePause') {
     togglePause();
   } else if (msg?.type === 'waterDrunk') {
     chrome.storage.local.set({ waterDue: false });
+  } else if (msg?.type === 'standDone') {
+    chrome.storage.local.set({ standDue: false });
   } else if (msg?.type === 'debug') {
     console.log('[Breathe]', msg.msg);
   }

@@ -5,6 +5,8 @@ Een persoonlijke extensie voor Microsoft Edge (en Chrome) waarmee je **discreet 
 - 🌬️ **Inademen** (standaard 4s, groen) → eventueel **vasthouden** (optioneel) → 😮‍💨 **Uitademen** (standaard 6s, blauw)
 - 🔄 Continue loop, zichtbaar op het **toolbar-icoon** én een **kleine verplaatsbare widget** in de pagina
 - 💧 Optionele **water-herinnering**: icoon wordt rood wanneer het tijd is om te drinken
+- 👀 **20-20-20 oogregel**: icoon wordt even violet — elke 20 min 20 seconden in de verte kijken
+- 🧍 Optionele **opsta-herinnering**: icoon wordt teal — elk uur even opstaan en bewegen
 - ⏰ Optionele **adem-herinnering**: subtiele kring rond het icoon, 1 minuut lang
 - ⚙️ Alles instelbaar via de **opties-pagina** (rechtsklik op het icoon → *Opties*)
 
@@ -34,6 +36,8 @@ Een persoonlijke extensie voor Microsoft Edge (en Chrome) waarmee je **discreet 
 
 **Herinneringen:**
 - 💧 **Water:** na het ingestelde interval wordt het icoon én de widget **rood** + tooltip *"Tijd voor een glas water"*. Klik op de rode widget om te bevestigen; daarna wordt alles weer normaal. Blijft rood tot je bevestigt.
+- 🧍 **Opstaan:** na het ingestelde interval wordt het icoon én de widget **teal** + tooltip *"Tijd om even op te staan en te bewegen"*. Klik op de teal widget om te bevestigen.
+- 👀 **Ogen (20-20-20):** na het ingestelde interval wordt het icoon **violet** + tooltip *"Kijk 20 seconden in de verte"*. Verdwijnt vanzelf na ~25s — geen klik nodig.
 - ⏰ **Adem:** na het ingestelde interval een subtiele lichte kring rond het icoon, 1 minuut lang + tooltip *"Tijd voor een paar rustige ademhalingen"*. Geen geluid, geen popup.
 
 ## Opties (rechtsklik op icoon → Opties)
@@ -48,8 +52,12 @@ Een persoonlijke extensie voor Microsoft Edge (en Chrome) waarmee je **discreet 
 | Kleuren | Standaard of **zacht/rustig** palet |
 | Adem-herinnering | Uit / 10 / 20 / 30 / 45 / 60 min |
 | Water-herinnering | Uit / 30 / 45 / 60 / 90 min |
+| Oog-herinnering (20-20-20) | Uit / 20 / 30 / 45 / 60 min |
+| Opsta-herinnering | Uit / 30 / 60 / 90 min |
 
 Wijzigingen zijn **direct actief** — geen herladen nodig.
+
+> 💡 **Kleuren op het icoon:** rood = water, teal = opstaan, violet = ogen (20-20-20), amber = vasthouden, groen = inademen, blauw = uitademen.
 
 ## Technisch
 
