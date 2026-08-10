@@ -1,19 +1,38 @@
-// Breathe — timing/cyclus-logica (pure functies, ook testbaar in Node)
-export const INHALE_MS = 4000; // 4s inademen
-export const EXHALE_MS = 6000; // 6s uitademen
-export const CYCLE_MS = INHALE_MS + EXHALE_MS;
-const INHALE_FRACTION = INHALE_MS / CYCLE_MS;
+// Breathe — ademhalingscyclus (pure logica, testbaar in Node)
+// Ondersteunt: inademen → (optioneel) vasthouden → uitademen, in een loop.
 
-/**
- * Bepaalt de fase voor een verstreken tijd (ms) binnen de cyclus.
- * @param {number} elapsed - verstreken tijd in ms (mag groter zijn dan CYCLE_MS of negatief)
- * @returns {{ inhaling: boolean, progress: number }}
- *   inhaling: true tijdens de inademfase
- *   progress: 0..1 — bij inademen oplopend 0→1, bij uitademen aflopend 1→0
- */
-export function phaseAt(elapsed) {
-  const t = ((elapsed % CYCLE_MS) + CYCLE_MS) % CYCLE_MS;
-  const inhaling = t < INHALE_MS;
-  const local = inhaling ? t / INHALE_MS : (t - INHALE_MS) / EXHALE_MS;
-  return { inhaling, progress: inhaling ? local : 1 - local };
+export const DEFAULT_SETTINGS = {
+  inhaleSec: 4,
+  holdSec: 0,
+  exhaleSec: 6,
+  widgetEnabled: true,
+  widgetSize: 26, // px
+  colors: 'default', // 'default' | 'soft'
+  waterReminderMin: 0, // 0 = uit
+  breatheReminderMin: 0, // 0 = uit
+};
+
+/** Bouwt een cyclus op basis van instellingen (seconden). */
+export function cycleFromSettings(s) {
+  const inhaleMs = Math.max(1, Math.round(s.inhaleSec)) * 1000;
+  const holdMs = Math.max(0, Math.round(s.holdSec)) * 1000;
+  const exhaleMs = Math.max(1, Math.round(s.exhaleSec)) * 1000;
+  const total = inhaleMs + holdMs + exhaleMs;
+  return {
+    inhaleMs,
+    holdMs,
+    exhaleMs,
+    total,
+    /**
+     * Bepaalt de fase voor een verstreken tijd (ms) binnen de cyclus.
+     * @returns {{ phase: 'inhale'|'hold'|'exhale', inhaling: boolean, progress: number }}
+     *   progress: 0..1 — inademen 0→1, vasthouden = 1 (volle ring), uitademen 1→0
+     */
+    phaseAt(elapsed) {
+      const t = ((elapsed % total) + total) % total;
+      if (t < inhaleMs) return { phase: 'inhale', inhaling: true, progress: t / inhaleMs };
+      if (t < inhaleMs + holdMs) return { phase: 'hold', inhaling: true, progress: 1 };
+      return { phase: 'exhale', inhaling: false, progress: 1 - (t - inhaleMs - holdMs) / exhaleMs };
+    },
+  };
 }

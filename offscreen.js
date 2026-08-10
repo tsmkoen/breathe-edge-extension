@@ -3,16 +3,37 @@
 // tot een MV3 service worker (die na ~30s in slaap valt).
 //
 // LET OP: offscreen documents hebben GEEN toegang tot chrome.storage — alleen
-// chrome.runtime (messaging). De pauze-status komt daarom via de service worker:
-//  - bij opstart: 'getState' request → SW antwoordt met { paused }
-//  - bij wijziging: SW stuurt 'setPaused' bericht
-import { phaseAt } from './cycle.js';
+// chrome.runtime (messaging). Alle state (pauze/water/reminder/instellingen)
+// komt daarom via de service worker: 'getState' bij opstart + 'state' updates.
+import { DEFAULT_SETTINGS, cycleFromSettings } from './cycle.js';
 import { renderImageData } from './icon-renderer.js';
 
 const TICK_MS = 50; // ~20 fps is vloeiend genoeg voor een toolbar-icoon
 
-let paused = false;
+let state = {
+  paused: false,
+  waterDue: false,
+  remind: false,
+  settings: { ...DEFAULT_SETTINGS },
+};
+let cycleCache = null;
 let lastSent = 0;
+
+function getCycle() {
+  if (!cycleCache) cycleCache = cycleFromSettings(state.settings);
+  return cycleCache;
+}
+
+function applyState(s) {
+  if (!s) return;
+  state.paused = !!s.paused;
+  state.waterDue = !!s.waterDue;
+  state.remind = !!s.remind;
+  if (s.settings) {
+    state.settings = { ...DEFAULT_SETTINGS, ...s.settings };
+    cycleCache = null;
+  }
+}
 
 function sendMessageSafe(msg) {
   try {
@@ -26,25 +47,26 @@ function sendMessageSafe(msg) {
 // Startlog (wordt door de SW in de console gelogd)
 sendMessageSafe({ type: 'debug', msg: 'offscreen document gestart' });
 
-// Huidige status opvragen bij de service worker
+// Huidige toestand opvragen bij de service worker
 chrome.runtime.sendMessage({ type: 'getState' }, (response) => {
-  if (response && typeof response.paused === 'boolean') paused = response.paused;
+  if (response) applyState(response);
 });
 
-// Statusupdates van de service worker (na toggle op icoon of widget)
+// Toestandsupdates van de service worker
 chrome.runtime.onMessage.addListener((msg) => {
-  if (msg?.type === 'setPaused') paused = !!msg.paused;
+  if (msg?.type === 'state') applyState(msg);
 });
 
 function frame(now) {
-  const { inhaling, progress } = phaseAt(now);
+  const cycle = getCycle();
+  const { phase, progress } = cycle.phaseAt(now);
   if (now - lastSent >= TICK_MS) {
     lastSent = now;
     sendMessageSafe({
       type: 'frame',
-      imageData: renderImageData(progress, inhaling, paused),
-      inhaling,
-      paused,
+      imageData: renderImageData({ ...state, phase, progress, cycle }),
+      phase,
+      progress,
     });
   }
   requestAnimationFrame(frame);
