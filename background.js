@@ -1,95 +1,59 @@
-// Breathe — geanimeerd toolbar-icoon (Edge/Chrome MV3)
-import { phaseAt } from './cycle.js';
+// Breathe — background service worker (Manifest V3)
+// De animatie zelf draait in een offscreen document (offscreen.html/offscreen.js),
+// want een MV3 service worker wordt na ~30s in slaap gezet.
+// Deze SW doet alleen: offscreen document beheren + het toolbar-icoon zetten.
+const OFFSCREEN_URL = 'offscreen.html';
 
-const SIZES = [16, 32, 48, 128];
-const TICK_MS = 50; // 20 fps is vloeiend genoeg voor een icoon
-const TRACK_COLOR = 'rgba(128, 128, 128, 0.35)';
-const COLORS = { inhale: '#22c55e', exhale: '#3b82f6' };
-
-let paused = false;
-let timer = null;
-let lastPhaseKey = null;
-
-// --- tekenen ---
-function draw(ctx, size, progress, inhaling) {
-  const stroke = Math.max(1.5, size * 0.11);
-  const margin = stroke / 2 + Math.max(1, size * 0.02);
-  const radius = (size - margin * 2) / 2;
-  const cx = size / 2;
-  const cy = size / 2;
-
-  ctx.lineWidth = stroke;
-  ctx.lineCap = 'round';
-
-  // achtergrondring (subtiel, voor contrast in zowel licht als donker thema)
-  ctx.strokeStyle = TRACK_COLOR;
-  ctx.beginPath();
-  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-  ctx.stroke();
-
-  // voortgangsboog: groen oplopend bij inademen, blauw aflopend bij uitademen
-  ctx.strokeStyle = inhaling ? COLORS.inhale : COLORS.exhale;
-  const start = -Math.PI / 2; // 12 uur = begin
-  const end = start + Math.PI * 2 * progress;
-  ctx.beginPath();
-  ctx.arc(cx, cy, radius, start, end);
-  ctx.stroke();
-}
-
-function renderFrame(progress, inhaling) {
-  const imageData = {};
-  for (const size of SIZES) {
-    const canvas = new OffscreenCanvas(size, size);
-    const ctx = canvas.getContext('2d');
-    draw(ctx, size, progress, inhaling);
-    imageData[size] = ctx.getImageData(0, 0, size, size);
-  }
-  return imageData;
-}
-
-function setIconSafe(imageData) {
+async function ensureOffscreen() {
   try {
-    const p = chrome.action.setIcon({ imageData });
-    if (p && typeof p.catch === 'function') p.catch(() => {});
+    if (typeof chrome.offscreen?.hasDocument === 'function') {
+      const has = await chrome.offscreen.hasDocument();
+      if (has) return;
+    }
+    await chrome.offscreen.createDocument({
+      url: OFFSCREEN_URL,
+      reasons: ['BLOBS'],
+      justification: 'Canvas-animatie (rAF) voor het geanimeerde Breathe toolbar-icoon.',
+    });
   } catch {
-    // negeer — icoon wordt volgende tick opnieuw gezet
+    // Document bestaat al of offscreen wordt niet ondersteund — niets te doen.
   }
 }
 
-// --- tooltip ---
-function updateTitle(inhaling) {
-  const key = paused ? 'paused' : inhaling ? 'inhale' : 'exhale';
-  if (key === lastPhaseKey) return;
-  lastPhaseKey = key;
-  const title = paused
-    ? 'Breathe — gepauzeerd (klik om te hervatten)'
-    : inhaling
-      ? 'Breathe — inademen (4s)'
-      : 'Breathe — uitademen (6s)';
-  chrome.action.setTitle({ title });
-}
-
-// --- hoofdlus ---
-function tick(now) {
-  if (paused) return;
-  const { inhaling, progress } = phaseAt(now);
-  setIconSafe(renderFrame(progress, inhaling));
-  updateTitle(inhaling);
-  timer = setTimeout(() => tick(performance.now()), TICK_MS);
-}
-
-// --- interactie: klik op het icoon = pauzeren/hervatten (geen popup) ---
-chrome.action.onClicked.addListener(() => {
-  paused = !paused;
-  if (paused) {
-    clearTimeout(timer);
-    setIconSafe(renderFrame(0, false)); // lege grijze ring = gepauzeerd
-  } else {
-    lastPhaseKey = null;
-    tick(performance.now());
-  }
-  updateTitle(!paused);
+chrome.runtime.onInstalled.addListener(() => {
+  ensureOffscreen();
+});
+chrome.runtime.onStartup.addListener(() => {
+  ensureOffscreen();
 });
 
-// --- start direct bij laden ---
-tick(performance.now());
+// Frames van het offscreen document: icoon + tooltip bijwerken.
+// Berichten van de widget: pauze togglen via storage (offscreen + widget luisteren mee).
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg?.type === 'frame') {
+    try {
+      chrome.action.setIcon({ imageData: msg.imageData });
+    } catch {
+      // volgende frame probeert opnieuw
+    }
+    const title = msg.paused
+      ? 'Breathe — gepauzeerd (klik om te hervatten)'
+      : msg.inhaling
+        ? 'Breathe — inademen (4s)'
+        : 'Breathe — uitademen (6s)';
+    chrome.action.setTitle({ title });
+  } else if (msg?.type === 'togglePause') {
+    togglePause();
+  }
+});
+
+// Klik op het toolbar-icoon = pauzeren/hervatten (geen popup).
+chrome.action.onClicked.addListener(() => {
+  togglePause();
+});
+
+function togglePause() {
+  chrome.storage.local.get('paused').then(({ paused }) => {
+    chrome.storage.local.set({ paused: !paused });
+  });
+}
