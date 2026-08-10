@@ -13,7 +13,6 @@ const OFFSCREEN_URL = 'offscreen.html';
 const FALLBACK_DELAY_MS = 3000;
 const FALLBACK_TICK_MS = 50;
 const REMIND_DURATION_MS = 60000; // adem-reminder zichtbaar gedurende 1 minuut
-const EYE_DURATION_MS = 25000; // oog-herinnering (20-20-20) zichtbaar ~25s
 
 let settings = { ...DEFAULT_SETTINGS };
 let paused = false;
@@ -113,10 +112,8 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   } else if (alarm.name === 'breathe-remind-off') {
     chrome.storage.local.set({ remind: false });
   } else if (alarm.name === 'breathe-eye') {
+    // 20-20-20: blijft actief tot de gebruiker bevestigt (klik op violette widget)
     chrome.storage.local.set({ eyeDue: true });
-    chrome.alarms.create('breathe-eye-off', { when: Date.now() + EYE_DURATION_MS });
-  } else if (alarm.name === 'breathe-eye-off') {
-    chrome.storage.local.set({ eyeDue: false });
   } else if (alarm.name === 'breathe-stand') {
     chrome.storage.local.set({ standDue: true });
   }
@@ -193,6 +190,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     chrome.storage.local.set({ waterDue: false });
   } else if (msg?.type === 'standDone') {
     chrome.storage.local.set({ standDue: false });
+  } else if (msg?.type === 'eyeDone') {
+    chrome.storage.local.set({ eyeDue: false });
   } else if (msg?.type === 'debug') {
     console.log('[Breathe]', msg.msg);
   }

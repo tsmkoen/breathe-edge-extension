@@ -84,7 +84,7 @@
       title = '🧍 Tijd om even op te staan en te bewegen — klik om te bevestigen';
     } else if (eyeDue) {
       key = 'eye';
-      title = '👀 20-20-20: kijk 20 seconden in de verte';
+      title = '👀 20-20-20: kijk 20 seconden in de verte — klik om te bevestigen';
     } else if (paused) {
       key = 'paused';
       title = 'Breathe — gepauzeerd (klik om te hervatten)';
@@ -251,6 +251,9 @@
     } else if (standDue) {
       // teal widget = opsta-reminder actief: klik bevestigt "opgestaan"
       chrome.runtime.sendMessage({ type: 'standDone' }).catch?.(() => {});
+    } else if (eyeDue) {
+      // violette widget = oog-reminder (20-20-20) actief: klik bevestigt "weggekeken"
+      chrome.runtime.sendMessage({ type: 'eyeDone' }).catch?.(() => {});
     } else {
       chrome.runtime.sendMessage({ type: 'togglePause' }).catch?.(() => {});
     }

@@ -37,7 +37,7 @@ Een persoonlijke extensie voor Microsoft Edge (en Chrome) waarmee je **discreet 
 **Herinneringen:**
 - 💧 **Water:** na het ingestelde interval wordt het icoon én de widget **rood** + tooltip *"Tijd voor een glas water"*. Klik op de rode widget om te bevestigen; daarna wordt alles weer normaal. Blijft rood tot je bevestigt.
 - 🧍 **Opstaan:** na het ingestelde interval wordt het icoon én de widget **teal** + tooltip *"Tijd om even op te staan en te bewegen"*. Klik op de teal widget om te bevestigen.
-- 👀 **Ogen (20-20-20):** na het ingestelde interval wordt het icoon **violet** + tooltip *"Kijk 20 seconden in de verte"*. Verdwijnt vanzelf na ~25s — geen klik nodig.
+- 👀 **Ogen (20-20-20):** na het ingestelde interval wordt het icoon **violet** + tooltip *"Kijk 20 seconden in de verte"*. Blijft violet staan tot je op de violette widget klikt = "weggekeken" — zo mis je het niet.
 - ⏰ **Adem:** na het ingestelde interval een subtiele lichte kring rond het icoon, 1 minuut lang + tooltip *"Tijd voor een paar rustige ademhalingen"*. Geen geluid, geen popup.
 
 ## Opties (rechtsklik op icoon → Opties)
