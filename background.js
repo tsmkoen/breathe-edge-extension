@@ -1,5 +1,5 @@
 // Breathe — geanimeerd toolbar-icoon (Edge/Chrome MV3)
-import { INHALE_MS, EXHALE_MS, phaseAt } from './cycle.js';
+import { phaseAt } from './cycle.js';
 
 const SIZES = [16, 32, 48, 128];
 const TICK_MS = 50; // 20 fps is vloeiend genoeg voor een icoon
