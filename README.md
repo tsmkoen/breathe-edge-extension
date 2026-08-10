@@ -52,7 +52,9 @@ Heb je al een oudere versie geïnstalleerd? Download de nieuwe ZIP, pak uit **ov
 
 ## Waarom het icoon blijft draaien (technisch)
 
-Manifest V3-service workers worden door Edge/Chrome na ~30 seconden in slaap gezet. Daarom draait de animatie hier in een **offscreen document** (`offscreen.html`/`offscreen.js`) met `requestAnimationFrame` — dat blijft actief. Het offscreen document stuurt de icoon-frames naar de service worker, die alleen `chrome.action.setIcon()` uitvoert. De widget in de pagina tekent zelf met een eigen canvas, zonder extra rechten.
+Manifest V3-service workers worden door Edge/Chrome na ~30 seconden in slaap gezet. Daarom draait de animatie primair in een **offscreen document** (`offscreen.html`/`offscreen.js`) met `requestAnimationFrame` — dat blijft actief en stuurt icoon-frames naar de service worker.
+
+**Fallback:** als het offscreen document om welke reden dan ook niet beschikbaar is, draait de service worker zelf een animatielus (na 3 seconden zonder frames). Een keepalive-alarm (elke 30s) wekt de service worker en herstelt de lus na een eventuele slaap. De widget in de pagina tekent zelf met een eigen canvas, zonder extra rechten.
 
 ## Bestanden
 
@@ -60,8 +62,9 @@ Manifest V3-service workers worden door Edge/Chrome na ~30 seconden in slaap gez
 |---|---|
 | `manifest.json` | Extensie-definitie (Manifest V3) |
 | `cycle.js` | Ademhalingscyclus: timing 4s/6s + faseberekening |
+| `icon-renderer.js` | Gedeelde icoon-rendering (canvas) — gebruikt door offscreen én SW-fallback |
 | `offscreen.html` + `offscreen.js` | Animatielus (rAF) → stuurt frames naar de service worker |
-| `background.js` | Service worker: offscreen-document beheren + toolbar-icoon zetten |
+| `background.js` | Service worker: offscreen beheren, icoon zetten, SW-fallback-lus, pauze-status |
 | `widget.js` | Discrete verplaatsbare widget in elke pagina (content script) |
 | `icons/` | Statische extensie-iconen (16/32/48/128 px) |
 | `tools/gen-icons.mjs` | Script om de iconen opnieuw te genereren |
