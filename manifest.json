@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "Breathe — 4/6 ademhaling",
+  "version": "1.0.0",
+  "description": "Ademhalingsoefening in de werkbalk: 4 seconden inademen (groene ring loopt op), 6 seconden uitademen (blauwe ring loopt af). Continue loop, geen popup nodig.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_title": "Breathe — inademen (4s)",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  }
+}
