@@ -9,7 +9,7 @@
   // --- defaults + formule (duplicaat van cycle.js; content scripts kunnen geen modules laden) ---
   const DEFAULTS = {
     inhaleSec: 4, holdSec: 0, exhaleSec: 6,
-    widgetEnabled: false, widgetSize: 26, colors: 'default',
+    widgetEnabled: false, widgetSize: 26, pageFrame: true, colors: 'default',
     waterReminderMin: 0, breatheReminderMin: 0, eyeReminderMin: 20, standReminderMin: 60,
   };
   function makeCycle(s) {
@@ -101,6 +101,56 @@
     }
   }
 
+  // --- pagina-kader: subtiele zacht pulserende rand rond het venster bij een
+  // actieve herinnering (water/opstaan/ogen) — onafhankelijk van de widget ---
+  const frameHost = document.createElement('div');
+  frameHost.id = '__breathe_frame__';
+  const frameShadow = frameHost.attachShadow({ mode: 'closed' });
+  frameShadow.innerHTML = `
+    <style>
+      .frame {
+        position: fixed; inset: 0; pointer-events: none; box-sizing: border-box;
+        z-index: 2147483647; opacity: 0; transition: opacity .5s;
+      }
+      .frame.visible {
+        opacity: 1;
+        animation: breathePulse 2.4s ease-in-out infinite;
+      }
+      @keyframes breathePulse {
+        0%, 100% { opacity: .45; }
+        50% { opacity: 1; }
+      }
+    </style>
+    <div class="frame"></div>
+  `;
+  const frame = frameShadow.querySelector('.frame');
+  let frameMounted = false;
+
+  function mountFrame() {
+    if (frameMounted || !settings.pageFrame) return;
+    frameMounted = true;
+    (document.body || document.documentElement).appendChild(frameHost);
+  }
+  function unmountFrame() {
+    if (!frameMounted) return;
+    frameMounted = false;
+    if (frameHost.parentNode) frameHost.parentNode.removeChild(frameHost);
+  }
+  function updateFrame() {
+    const pal = PALETTES[settings.colors === 'soft' ? 'soft' : 'default'];
+    let color = null;
+    if (waterDue) color = pal.water;
+    else if (standDue) color = pal.stand;
+    else if (eyeDue) color = pal.eye;
+    if (color) {
+      frame.style.border = `3px solid ${color}`;
+      frame.style.boxShadow = `0 0 16px ${color}55`;
+      frame.classList.add('visible');
+    } else {
+      frame.classList.remove('visible');
+    }
+  }
+
   // --- state uit storage (content scripts mogen storage wél gebruiken) ---
   chrome.storage.local.get(['settings', 'paused', 'waterDue', 'remind', 'eyeDue', 'standDue', 'widgetPos']).then((v) => {
     if (v.settings) settings = { ...DEFAULTS, ...v.settings };
@@ -117,6 +167,8 @@
     }
     applySettings();
     updateTitle();
+    mountFrame();
+    updateFrame();
     mount();
   });
 
@@ -127,12 +179,15 @@
       applySettings();
       if (settings.widgetEnabled) mount();
       else unmount();
+      if (settings.pageFrame) mountFrame();
+      else unmountFrame();
     }
     if (changes.paused) paused = !!changes.paused.newValue;
     if (changes.waterDue) waterDue = !!changes.waterDue.newValue;
     if (changes.remind) remind = !!changes.remind.newValue;
     if (changes.eyeDue) eyeDue = !!changes.eyeDue.newValue;
     if (changes.standDue) standDue = !!changes.standDue.newValue;
+    updateFrame();
     updateTitle();
   });
 

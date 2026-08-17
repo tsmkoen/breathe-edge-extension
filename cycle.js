@@ -7,6 +7,7 @@ export const DEFAULT_SETTINGS = {
   exhaleSec: 6,
   widgetEnabled: false, // widget in de pagina: standaard UIT (alles via toolbar-icoon)
   widgetSize: 26, // px
+  pageFrame: true, // subtiel kader rond het venster bij een actieve herinnering
   colors: 'default', // 'default' | 'soft'
   waterReminderMin: 0, // 0 = uit
   breatheReminderMin: 0, // 0 = uit

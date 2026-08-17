@@ -42,6 +42,7 @@ Een persoonlijke extensie voor Microsoft Edge (en Chrome) waarmee je **discreet 
 - 👀 **Ogen (20-20-20):** het toolbar-icoon wordt een **violet oog** + tooltip *"Kijk 20 seconden in de verte"*. **Klik op het icoon** = "weggekeken".
 - ⏸ **Pauze:** grijs icoon met pauze-balkjes. Klik om te hervatten.
 - ⏰ **Adem:** subtiele lichte kring rond het ademhalingsicoon, 1 minuut lang. Geen geluid, geen popup.
+- 🔲 **Kader rond het venster:** bij een actieve herinnering (water/opstaan/ogen) verschijnt een **zacht pulserende rand** rond de pagina — zo zie je in je ooghoek dat er iets te doen is, ook zonder naar het icoon te kijken. Aan/uit in de opties.
 
 ## Opties (rechtsklik op icoon → Opties)
 
@@ -53,6 +54,7 @@ Een persoonlijke extensie voor Microsoft Edge (en Chrome) waarmee je **discreet 
 | Widget tonen | Widget in de pagina (rechtsonder) — **standaard uit** |
 | Grootte | Klein / medium / groot (20/26/34 px) |
 | Kleuren | Standaard of **zacht/rustig** palet |
+| Kader rond venster | Zachte rand bij een herinnering — **standaard aan** |
 | Adem-herinnering | Uit / 10 / 20 / 30 / 45 / 60 min |
 | Water-herinnering | Uit / 30 / 45 / 60 / 90 min |
 | Oog-herinnering (20-20-20) | Uit / 20 / 30 / 45 / 60 min |

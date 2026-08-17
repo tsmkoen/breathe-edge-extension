@@ -6,6 +6,7 @@
     exhaleSec: 6,
     widgetEnabled: false,
     widgetSize: 26,
+    pageFrame: true,
     colors: 'default',
     waterReminderMin: 60,
     breatheReminderMin: 0,
@@ -30,6 +31,7 @@
     $('exhaleSec').value = s.exhaleSec;
     $('widgetEnabled').checked = !!s.widgetEnabled;
     $('widgetSize').value = String(s.widgetSize);
+    $('pageFrame').checked = !!s.pageFrame;
     const colorRadio = document.querySelector(`input[name="colors"][value="${s.colors}"]`);
     if (colorRadio) colorRadio.checked = true;
     $('breatheReminderMin').value = String(s.breatheReminderMin);
@@ -45,6 +47,7 @@
       exhaleSec: Math.max(1, Math.min(30, parseInt($('exhaleSec').value, 10) || 6)),
       widgetEnabled: $('widgetEnabled').checked,
       widgetSize: parseInt($('widgetSize').value, 10) || 26,
+      pageFrame: $('pageFrame').checked,
       colors: document.querySelector('input[name="colors"]:checked')?.value || 'default',
       breatheReminderMin: parseInt($('breatheReminderMin').value, 10) || 0,
       waterReminderMin: parseInt($('waterReminderMin').value, 10) || 0,
