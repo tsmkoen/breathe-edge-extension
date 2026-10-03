@@ -24,6 +24,7 @@ Het script laadt daarbij twee bestanden uit de extensie zelf (`cycle.js` en `dra
 4. Zet **Developer mode** aan (schakelaar linksonder)
 5. Klik **Load unpacked** → selecteer de uitgepakte map
 6. **Pin de extensie** aan de werkbalk: puzzelstukje-icoon → speld 📌 naast *Breathe*
+   *(Vanaf Chrome 153 wordt het action-icoon voor sommige gebruikers automatisch aan de toolbar vastgepind. De stap is dan overbodig, maar pinning zelf kan geen kwaad — en is nu juist nodig als het bij jou níét automatisch gebeurt.)*
 
 > **Update installeren?** Verwijder de oude extensie eerst (of pak de nieuwe ZIP over de oude map uit) en klik **reload** op `edge://extensions`. Controleer dat de versie rechtsboven overeenkomt met `version` in `manifest.json`.
 
