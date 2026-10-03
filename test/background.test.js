@@ -348,7 +348,93 @@ test('na een frame stopt de SW-lus met tekenen', async () => {
   assert.equal(calls, settled, 'na het frame komt geen nieuwe tekenaanroep meer');
 });
 
-// --- keepalive: batterijvriendelijker interval ---
+// --- gelijktijdige aanroepen van ensureOffscreen() ---
+// Chrome staat maar ÉÉN offscreen document per extensie toe. De guard
+// `hasDocument()` is asynchroom, dus twee bijna gelijktijdige aanroepen kunnen
+// allebei zien dat er nog geen document is en dan allebei createDocument()
+// aanroepen. De docs adviseren expliciet een `creating`-promise.
+test('twee gelijktijdige aanroepen maken maar één offscreen document', async () => {
+  const chromeStub = makeChrome();
+  await loadBackground(chromeStub);
+  await flush();
+
+  let createCalls = 0;
+  // De create duurt even, zodat de tweede aanroep het document ziet ontstaan.
+  chromeStub.offscreen.hasDocument = async () => false;
+  chromeStub.offscreen.createDocument = async () => {
+    createCalls++;
+    await new Promise((r) => setTimeout(r, 20));
+  };
+
+  // Roep beide paden aan die in het echte leven bijna gelijktijdig kunnen komen.
+  chromeStub.__listeners.installed({ reason: 'install' });
+  chromeStub.__listeners.startup();
+  await new Promise((r) => setTimeout(r, 120));
+
+  assert.equal(createCalls, 1, 'het document wordt maar één keer aangemaakt');
+});
+
+test('een reeds bestaand document wordt niet opnieuw aangemaakt', async () => {
+  const chromeStub = makeChrome();
+  await loadBackground(chromeStub);
+  await flush();
+
+  let createCalls = 0;
+  chromeStub.offscreen.hasDocument = async () => true;
+  chromeStub.offscreen.createDocument = async () => { createCalls++; };
+
+  chromeStub.__listeners.installed({ reason: 'install' });
+  await new Promise((r) => setTimeout(r, 60));
+  assert.equal(createCalls, 0, 'bestaand document wordt hergebruikt');
+});
+
+test('een fout bij aanmaken blokkeert latere pogingen niet', async () => {
+  const chromeStub = makeChrome();
+  await loadBackground(chromeStub);
+  await flush();
+
+  let createCalls = 0;
+  chromeStub.offscreen.hasDocument = async () => false;
+  chromeStub.offscreen.createDocument = async () => {
+    createCalls++;
+    if (createCalls === 1) throw new Error('tijdelijke fout');
+  };
+
+  chromeStub.__listeners.installed({ reason: 'install' });
+  await new Promise((r) => setTimeout(r, 60));
+  chromeStub.__listeners.startup();
+  await new Promise((r) => setTimeout(r, 60));
+
+  assert.equal(createCalls, 2, 'na een fout wordt opnieuw geprobeerd');
+});
+
+// --- alarms moeten sessies overleven (Chrome 150+ vlag, browserscompatibiliteit) ---
+test('alle alarms zetten persistAcrossSessions expliciet', async () => {
+  const chromeStub = makeChrome({ settings: { waterReminderMin: 60, breatheReminderMin: 20, eyeReminderMin: 20, standReminderMin: 60 } });
+  await loadBackground(chromeStub);
+  await flush();
+
+  const created = [...chromeStub.__alarms.entries()];
+  assert.ok(created.length > 0, 'er zijn alarms aangemaakt');
+  for (const [name, info] of created) {
+    assert.equal(
+      info.persistAcrossSessions, true,
+      `${name} zet persistAcrossSessions (zonder dit is het gedrag in oudere browsers onvoorspelbaar)`
+    );
+  }
+});
+
+test('het eenmalige remind-off-alarm overleeft een herstart', async () => {
+  const until = Date.now() + 60000;
+  const chromeStub = makeChrome({ remind: true, remindUntil: until });
+  await loadBackground(chromeStub);
+  await flush();
+
+  const off = chromeStub.__alarms.get('breathe-remind-off');
+  assert.ok(off, 'het uit-alarm is ingepland');
+  assert.equal(off.persistAcrossSessions, true, 'en blijft bestaan over een sessiegrens heen');
+});
+
 test('de keepalive loopt niet vaker dan eens per minuut', async () => {
   const chromeStub = makeChrome();
   await loadBackground(chromeStub);
