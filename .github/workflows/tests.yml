@@ -26,3 +26,36 @@ jobs:
 
       - name: Manifest en package.json zijn geldig JSON met dezelfde versie
         run: node -e "const m=require('./manifest.json'),p=require('./package.json');if(m.version!==p.version){console.error('versies lopen uiteen:',m.version,p.version);process.exit(1)}console.log('versie',m.version)"
+
+      # De widget laadt cycle.js en drawing.js via een dynamic import uit de
+      # content script. Dat werkt alleen als die bestanden als
+      # web_accessible_resources in de manifest staan — anders faalt de widget
+      # stilletjes in de browser en merkt niemand het.
+      - name: Gedeelde modules staan in web_accessible_resources
+        run: |
+          node -e "
+            const m = require('./manifest.json');
+            const resources = (m.web_accessible_resources || []).flatMap((r) => r.resources);
+            const needed = ['cycle.js', 'drawing.js'];
+            const missing = needed.filter((n) => !resources.includes(n));
+            if (missing.length) {
+              console.error('niet web-toegankelijk (widget zou falen):', missing.join(', '));
+              process.exit(1);
+            }
+            if (!m.minimum_chrome_version) {
+              console.error('minimum_chrome_version ontbreekt terwijl chrome.offscreen gebruikt wordt');
+              process.exit(1);
+            }
+            console.log('web_accessible_resources OK, minimum_chrome_version', m.minimum_chrome_version);
+          "
+
+      # Voorkomt dat de gedeelde tekenaars of de paletten per bestand gaan
+      # dupliceren — precies de drift die deze refactor oplostte.
+      - name: Gedeelde tekencode is niet gedupliceerd
+        run: |
+          for f in cycle.js drawing.js icon-renderer.js; do
+            node --check "$f"
+          done
+          ! grep -q '#22c55e' widget.js || { echo "widget.js bevat kleurcodes; gebruik drawing.js"; exit 1; }
+          ! grep -q '#22c55e' icon-renderer.js || { echo "icon-renderer.js bevat kleurcodes; gebruik drawing.js"; exit 1; }
+          echo "geen gedupliceerde paletten"

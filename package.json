@@ -1,6 +1,6 @@
 {
   "name": "breathe-extension",
-  "version": "1.8.0",
+  "version": "1.9.0",
   "private": true,
   "description": "Rustige ademhaling tijdens de werkdag — Chrome/Edge MV3-extensie",
   "type": "module",

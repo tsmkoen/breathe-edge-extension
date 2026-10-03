@@ -1,42 +1,35 @@
 // Breathe — kleine discrete ademhalingswidget in de pagina (content script).
 // Toont dezelfde cyclus als het toolbar-icoon (instelbaar: inhale/hold/exhale).
 // - Slepen: verplaats de widget naar een hoek van je scherm (positie wordt onthouden)
-// - Klik: pauzeren/hervatten — MAAR als de water-reminder actief is: "gedronken" bevestigen
-(() => {
+// - Klik: pauzeren/hervatten — MAAR als een herinnering actief is: die bevestigen
+//
+// Een content script kan geen statische imports gebruiken, maar wél een dynamic
+// import met chrome.runtime.getURL. Daarmee deelt dit bestand de cycluslogica
+// en de pictogrammen met de service worker in plaats van ze te dupliceren.
+// De modules zijn daarom als web_accessible_resources in de manifest opgenomen.
+(async () => {
   if (window.__breatheWidgetInstalled) return;
   window.__breatheWidgetInstalled = true;
 
-  // --- defaults + formule (duplicaat van cycle.js; content scripts kunnen geen modules laden) ---
-  // Let op: dit blok is een duplicaat van DEFAULT_SETTINGS in cycle.js, omdat een
-  // content script geen modules kan laden. Houd het synchroon — DEFAULT_SETTINGS
-  // is de enige bron van waarheid (o.a. waterReminderMin: 60).
-  const DEFAULTS = {
-    inhaleSec: 4, holdSec: 0, exhaleSec: 6,
-    widgetEnabled: false, widgetSize: 26, pageFrame: true, colors: 'default',
-    waterReminderMin: 60, breatheReminderMin: 0, eyeReminderMin: 20, standReminderMin: 60,
-  };
-  function makeCycle(s) {
-    const inhaleMs = Math.max(1, Math.round(s.inhaleSec)) * 1000;
-    const holdMs = Math.max(0, Math.round(s.holdSec)) * 1000;
-    const exhaleMs = Math.max(1, Math.round(s.exhaleSec)) * 1000;
-    const total = inhaleMs + holdMs + exhaleMs;
-    return {
-      inhaleMs, holdMs, exhaleMs, total,
-      phaseAt(elapsed) {
-        const t = ((elapsed % total) + total) % total;
-        if (t < inhaleMs) return { phase: 'inhale', inhaling: true, progress: t / inhaleMs };
-        if (t < inhaleMs + holdMs) return { phase: 'hold', inhaling: true, progress: 1 };
-        return { phase: 'exhale', inhaling: false, progress: 1 - (t - inhaleMs - holdMs) / exhaleMs };
-      },
-    };
-  }
-  // duplicaat van de kleurenpaletten in icon-renderer.js — houd synchroon
-  const PALETTES = {
-    default: { inhale: '#22c55e', exhale: '#3b82f6', hold: '#f59e0b', water: '#ef4444', stand: '#14b8a6', eye: '#8b5cf6', paused: '#9ca3af', track: 'rgba(128,128,128,0.30)', halo: 'rgba(255,255,255,0.45)' },
-    soft: { inhale: '#7fb69a', exhale: '#8ab4d8', hold: '#e2c07e', water: '#e08a8a', stand: '#7fc4b8', eye: '#a89ad4', paused: '#b0b0b0', track: 'rgba(128,128,128,0.24)', halo: 'rgba(255,255,255,0.35)' },
-  };
-
   const CANVAS = 96; // interne resolutie (scherp op elk scherm)
+
+  // --- gedeelde modules laden (cycle.js + drawing.js) ---
+  let DEFAULT_SETTINGS, cycleFromSettings, paletteFor, symbolBackground, drawDrop, drawPerson,
+      drawEye, drawPause, drawBreathRing;
+  try {
+    [{ DEFAULT_SETTINGS, cycleFromSettings }, drawing] = await Promise.all([
+      import(chrome.runtime.getURL('cycle.js')),
+      import(chrome.runtime.getURL('drawing.js')),
+    ]);
+    ({ paletteFor, symbolBackground, drawDrop, drawPerson, drawEye, drawPause, drawBreathRing } = drawing);
+  } catch (e) {
+    // Zonder de modules kan de widget niet betrouwbaar tekenen. Liever niets
+    // tonen dan een kapotte widget: het toolbar-icoon blijft gewoon werken.
+    console.error('[Breathe] widget kon de gedeelde modules niet laden:', e?.message || e);
+    return;
+  }
+
+  const DEFAULTS = DEFAULT_SETTINGS;
 
   let settings = { ...DEFAULTS };
   let paused = false;
@@ -45,8 +38,9 @@
   let eyeDue = false;
   let standDue = false;
   let cycleStartedAt = 0;
-  let cycle = makeCycle(settings);
+  let cycle = cycleFromSettings(settings);
   let lastTitleKey = '';
+  let mounted = false;
 
   const host = document.createElement('div');
   host.id = '__breathe_widget__';
@@ -74,7 +68,7 @@
   function applySettings() {
     wrap.style.width = `${settings.widgetSize}px`;
     wrap.style.height = `${settings.widgetSize}px`;
-    cycle = makeCycle(settings);
+    cycle = cycleFromSettings(settings);
   }
 
   function updateTitle() {
@@ -141,7 +135,7 @@
     if (frameHost.parentNode) frameHost.parentNode.removeChild(frameHost);
   }
   function updateFrame() {
-    const pal = PALETTES[settings.colors === 'soft' ? 'soft' : 'default'];
+    const pal = paletteFor(settings);
     let color = null;
     if (waterDue) color = pal.water;
     else if (standDue) color = pal.stand;
@@ -161,7 +155,7 @@
     return cycleStartedAt ? Date.now() - cycleStartedAt : 0;
   }
 
-  chrome.storage.local.get(['settings', 'paused', 'waterDue', 'remind', 'remindUntil', 'eyeDue', 'standDue', 'widgetPos', 'cycleStartedAt']).then((v) => {
+  function applyStorage(v) {
     if (v.settings) settings = { ...DEFAULTS, ...v.settings };
     paused = !!v.paused;
     waterDue = !!v.waterDue;
@@ -182,7 +176,13 @@
     mountFrame();
     updateFrame();
     mount();
-  });
+  }
+
+  const STORAGE_KEYS = [
+    'settings', 'paused', 'waterDue', 'remind', 'remindUntil',
+    'eyeDue', 'standDue', 'widgetPos', 'cycleStartedAt',
+  ];
+  chrome.storage.local.get(STORAGE_KEYS).then(applyStorage);
 
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local') return;
@@ -209,120 +209,41 @@
   });
 
   // --- tekenen ---
-  // pictogram-helpers (duplicaat van icon-renderer.js — houd synchroon)
-  function roundRectPath(x, y, w, h, r) {
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.arcTo(x + w, y, x + w, y + h, r);
-    ctx.arcTo(x + w, y + h, x, y + h, r);
-    ctx.arcTo(x, y + h, x, y, r);
-    ctx.arcTo(x, y, x + w, y, r);
-    ctx.closePath();
-  }
-  function symbolBackground(color) {
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.arc(CANVAS / 2, CANVAS / 2, CANVAS / 2 - Math.max(1, CANVAS * 0.05), 0, Math.PI * 2);
-    ctx.fill();
-  }
-  function drawDrop(color) {
-    ctx.fillStyle = color;
-    const r = CANVAS * 0.3;
-    ctx.beginPath();
-    ctx.moveTo(CANVAS / 2, CANVAS / 2 - r * 1.15);
-    ctx.bezierCurveTo(CANVAS / 2 + r * 0.85, CANVAS / 2 - r * 0.25, CANVAS / 2 + r * 0.7, CANVAS / 2 + r * 0.65, CANVAS / 2, CANVAS / 2 + r * 0.75);
-    ctx.bezierCurveTo(CANVAS / 2 - r * 0.7, CANVAS / 2 + r * 0.65, CANVAS / 2 - r * 0.85, CANVAS / 2 - r * 0.25, CANVAS / 2, CANVAS / 2 - r * 1.15);
-    ctx.closePath();
-    ctx.fill();
-  }
-  function drawPerson(color) {
-    ctx.fillStyle = color;
-    const r = CANVAS * 0.3;
-    ctx.beginPath();
-    ctx.arc(CANVAS / 2, CANVAS / 2 - r * 0.45, r * 0.32, 0, Math.PI * 2);
-    ctx.fill();
-    roundRectPath(CANVAS / 2 - r * 0.38, CANVAS / 2 - r * 0.05, r * 0.76, r * 0.95, r * 0.2);
-    ctx.fill();
-  }
-  function drawEye(bgColor) {
-    const r = CANVAS * 0.3;
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.ellipse(CANVAS / 2, CANVAS / 2, r * 0.85, r * 0.52, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = bgColor;
-    ctx.beginPath();
-    ctx.arc(CANVAS / 2, CANVAS / 2, r * 0.22, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  function drawPause(color) {
-    ctx.fillStyle = color;
-    const r = CANVAS * 0.28;
-    ctx.fillRect(CANVAS / 2 - r * 0.75, CANVAS / 2 - r * 0.85, r * 0.5, r * 1.7);
-    ctx.fillRect(CANVAS / 2 + r * 0.25, CANVAS / 2 - r * 0.85, r * 0.5, r * 1.7);
-  }
-
   function draw() {
-    const pal = PALETTES[settings.colors === 'soft' ? 'soft' : 'default'];
-    ctx.clearRect(0, 0, CANVAS, CANVAS);
+    const pal = paletteFor(settings);
     const cx = CANVAS / 2;
     const cy = CANVAS / 2;
+    ctx.clearRect(0, 0, CANVAS, CANVAS);
 
     // herinnerings-pictogrammen: 💧 water, 🧍 opstaan, 👀 ogen, ⏸ pauze
     if (waterDue) {
-      symbolBackground(pal.water);
-      drawDrop('#ffffff');
+      symbolBackground(ctx, cx, cy, CANVAS, pal.water);
+      drawDrop(ctx, cx, cy, CANVAS, '#ffffff');
       return;
     }
     if (standDue) {
-      symbolBackground(pal.stand);
-      drawPerson('#ffffff');
+      symbolBackground(ctx, cx, cy, CANVAS, pal.stand);
+      drawPerson(ctx, cx, cy, CANVAS, '#ffffff');
       return;
     }
     if (eyeDue) {
-      symbolBackground(pal.eye);
-      drawEye(pal.eye);
+      symbolBackground(ctx, cx, cy, CANVAS, pal.eye);
+      drawEye(ctx, cx, cy, CANVAS, pal.eye);
       return;
     }
     if (paused) {
-      symbolBackground(pal.paused);
-      drawPause('#ffffff');
+      symbolBackground(ctx, cx, cy, CANVAS, pal.paused);
+      drawPause(ctx, cx, cy, CANVAS, '#ffffff');
       return;
     }
 
-    // ademhalingsring
+    // ademhalingsring — dezelfde tekenaar als het toolbar-icoon
     const { phase, progress } = cycle.phaseAt(cycleElapsed());
-    const stroke = CANVAS * 0.1;
-    const radius = CANVAS / 2 - CANVAS * 0.07;
-    const mid = radius - stroke / 2;
-
-    ctx.lineWidth = stroke;
-    ctx.lineCap = 'round';
-
-    if (remind) {
-      ctx.strokeStyle = pal.halo;
-      ctx.beginPath();
-      ctx.arc(cx, cy, mid + stroke * 0.9, 0, Math.PI * 2);
-      ctx.stroke();
-    }
-
-    ctx.strokeStyle = pal.track;
-    ctx.beginPath();
-    ctx.arc(cx, cy, mid, 0, Math.PI * 2);
-    ctx.stroke();
-
-    // voortgangsboog (kleur per fase)
-    const color = phase === 'hold' ? pal.hold : phase === 'inhale' ? pal.inhale : pal.exhale;
-    ctx.strokeStyle = color;
-    const start = -Math.PI / 2;
-    const end = start + Math.PI * 2 * progress;
-    ctx.beginPath();
-    ctx.arc(cx, cy, mid, start, end);
-    ctx.stroke();
+    const { radius, stroke, color } = drawBreathRing(ctx, CANVAS, phase, progress, pal, { halo: remind });
 
     // gevulde kern die groeit (inademen) en krimpt (uitademen) — extra duidelijk
     const rMin = CANVAS * 0.06;
-    const rMax = mid - stroke * 0.9;
+    const rMax = radius - stroke * 0.9;
     const r = rMin + (rMax - rMin) * progress;
     ctx.fillStyle = color;
     ctx.beginPath();
@@ -337,7 +258,6 @@
   }
 
   // --- widget aan/uit (op basis van opgeslagen instelling) ---
-  let mounted = false;
   function mount() {
     if (mounted || !settings.widgetEnabled) return;
     mounted = true;
