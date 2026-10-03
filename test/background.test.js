@@ -44,11 +44,24 @@ function makeOffscreenCanvas() {
   };
 }
 
-// Achtergebleven module-instanties uit een vorige test draaien hun animatielus
-// nog steeds tegen `globalThis.chrome`. Na elke test wijzen we dat naar een
-// dood model, zodat een oude lus nooit de volgende test kan "behalpen".
+// Elke test laadt background.js opnieuw, dus elke test heeft een eigen
+// animatielus. Die lussen lezen `globalThis.chrome` pas bij elke tick, dus ze
+// wijzen naar de stub van de NIEUWE test zodra die geïnstalleerd is en zouden
+// de volgende test kunnen "behalpen". We houden daarom elke stub bij en stoppen
+// na elke test alle lussen door ze een frame te sturen (stopSwLoop).
 const SINK = { action: { setIcon: async () => {}, setTitle: async () => {} }, runtime: { sendMessage: async () => {} }, alarms: { create() {}, clear() {} }, storage: { local: { get: async () => ({}), set: async () => {} }, onChanged: { addListener() {} } } };
+const createdStubs = [];
+
 afterEach(() => {
+  // Eerst elke draaiende lus stoppen, dan pas globalThis.chrome dood zetten.
+  for (const stub of createdStubs) {
+    try {
+      stub.__listeners.message?.({ type: 'frame', imageData: {} });
+    } catch {
+      // een stub die al af is opgeruimd is geen probleem
+    }
+  }
+  createdStubs.length = 0;
   globalThis.chrome = SINK;
   globalThis.OffscreenCanvas = makeOffscreenCanvas();
 });
@@ -115,6 +128,7 @@ function makeChrome(initial = {}) {
     __listeners: listeners,
     __log: log,
   };
+  createdStubs.push(stub);
   return stub;
 }
 
@@ -259,6 +273,93 @@ test('een bestaande cycleStartedAt blijft behouden bij het laden', async () => {
   let state = null;
   chromeStub.__listeners.message({ type: 'getState' }, {}, (r) => { state = r; });
   assert.equal(state.cycleStartedAt, startedAt, 'de fase gaat niet terug naar het begin');
+});
+
+// --- de fallback mag niet van een setTimeout afhangen ---
+// Een service worker kan worden gesuspendeerd, waardoor een lopende timer
+// nooit vuurt. De eerste fallback-check loopt daarom via een alarm.
+test('de eerste fallback-check is een alarm, geen setTimeout', async () => {
+  const chromeStub = makeChrome();
+  await loadBackground(chromeStub);
+  await flush();
+
+  chromeStub.__listeners.installed({ reason: 'install' });
+  await flush();
+
+  const check = chromeStub.__alarms.get('breathe-fallback-check');
+  assert.ok(check, 'er wordt een eenmalig fallback-alarm ingepland');
+  assert.ok(
+    typeof check.when === 'number' && check.when > Date.now(),
+    'het alarm staat in de toekomst'
+  );
+  assert.equal(check.periodInMinutes, undefined, 'het is eenmalig, niet periodiek');
+});
+
+test('zonder frame start het fallback-alarm de SW-lus', async () => {
+  const chromeStub = makeChrome();
+  await loadBackground(chromeStub);
+  await flush();
+
+  chromeStub.__listeners.alarm({ name: 'breathe-fallback-check' });
+
+  let setIconCalls = 0;
+  chromeStub.action.setIcon = async () => { setIconCalls++; };
+  await new Promise((r) => setTimeout(r, 120));
+  assert.ok(setIconCalls > 0, 'de SW tekent zelf als offscreen niets stuurt');
+});
+
+test('een frame maakt het fallback-alarm overbodig', async () => {
+  const chromeStub = makeChrome();
+  await loadBackground(chromeStub);
+  await flush();
+
+  chromeStub.__listeners.installed({ reason: 'install' });
+  await flush();
+  assert.ok(chromeStub.__alarms.has('breathe-fallback-check'), 'alarm staat er eerst');
+
+  chromeStub.__listeners.message({ type: 'frame', imageData: {} });
+  await flush();
+  assert.ok(
+    !chromeStub.__alarms.has('breathe-fallback-check'),
+    'het losse alarm wordt opgeruimd zodra offscreen praat'
+  );
+});
+
+test('na een frame stopt de SW-lus met tekenen', async () => {
+  // De check is eenmalig, maar zodra offscreen wél frames stuurt moet de
+  // eigen lus van de SW ophouden — anders tekenen we dubbel.
+  const chromeStub = makeChrome();
+  await loadBackground(chromeStub);
+  await flush();
+
+  chromeStub.__listeners.alarm({ name: 'breathe-fallback-check' });
+  let calls = 0;
+  chromeStub.action.setIcon = async () => { calls++; };
+  await new Promise((r) => setTimeout(r, 120));
+  assert.ok(calls > 0, 'de fallback-lus tekent eerst');
+
+  // Een frame van offscreen stopt de lus. Er kan nog één tick in de vlucht zijn,
+  // dus we laten de wacht even lopen en vergelijken daarna twee opeenvolgende
+  // vensters: als de lus dood is, groeit de teller niet meer.
+  chromeStub.__listeners.message({ type: 'frame', imageData: {} });
+  await new Promise((r) => setTimeout(r, 200)); // alle lopende ticks laten afronden
+  const settled = calls;
+  await new Promise((r) => setTimeout(r, 200)); // dit venster hoort leeg te zijn
+  assert.equal(calls, settled, 'na het frame komt geen nieuwe tekenaanroep meer');
+});
+
+// --- keepalive: batterijvriendelijker interval ---
+test('de keepalive loopt niet vaker dan eens per minuut', async () => {
+  const chromeStub = makeChrome();
+  await loadBackground(chromeStub);
+  await flush();
+
+  const keepalive = chromeStub.__alarms.get('breathe-keepalive');
+  assert.ok(keepalive, 'keepalive-alarm bestaat');
+  assert.ok(
+    keepalive.periodInMinutes >= 1,
+    `keepalive draait om de ${keepalive.periodInMinutes} min — niet elke 30 s`
+  );
 });
 
 // --- de ontbrekende togglePause ---

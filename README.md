@@ -14,6 +14,8 @@ Een persoonlijke extensie voor Microsoft Edge (en Chrome) waarmee je **discreet 
 
 De extensie injecteert een klein, niet-selecteerbaar script op elke pagina (`<all_urls>`), maar dat script **leest en verstuurt niets**: het tekent alleen de ademhalingsring en leest de eigen instellingen uit `chrome.storage.local`. Er staan geen host-permissies of netwerkrechten in de manifest. De injectie is nodig omdat de widget en het herinneringskader in de pagina getekend moeten worden — en is per extensie uit te schakelen door hem op een enkele site toe te laten draaien.
 
+Het script laadt daarbij twee bestanden uit de extensie zelf (`cycle.js` en `drawing.js`) via een dynamic import, zodat de cyclus en de pictogrammen niet dubbel in de code hoeven te staan. Die staan daarom als `web_accessible_resources` in de manifest. Ze bevatten geen instellingen of gegevens van de gebruiker — alleen wiskunde en kleurcodes — en worden uitsluitend door deze extensie zelf geladen.
+
 ## Installatie (Edge)
 
 1. **Download** deze repository als ZIP: groene knop **Code** → **Download ZIP**
@@ -68,8 +70,10 @@ Wijzigingen zijn **direct actief** — geen herladen nodig.
 
 ## Technisch
 
-- **Manifest V3.** MV3-service workers worden door Edge/Chrome na ~30s in slaap gezet; daarom draait de animatie primair in een **offscreen document** (`rAF`-lus) dat frames naar de service worker stuurt. Een **fallback-lus in de service worker** + **keepalive-alarm** zorgen dat het icoon blijft bewegen, ook als offscreen niet beschikbaar is.
+- **Manifest V3**, `minimum_chrome_version: 109` (nodig voor `chrome.offscreen`). MV3-service workers worden door Edge/Chrome na ~30s in slaap gezet; daarom draait de animatie primair in een **offscreen document** (`rAF`-lus) dat frames naar de service worker stuurt. Een **fallback-lus in de service worker** + **keepalive-alarm** zorgen dat het icoon blijft bewegen, ook als offscreen niet beschikbaar is.
 - State (pauze, water, reminder, instellingen) via `chrome.storage.local`; het offscreen document krijgt state via berichten (offscreen documenten hebben geen storage-toegang).
+- De cycluslogica, de kleurenpaletten en de pictogrammen staan elk op één plek (`cycle.js` en `drawing.js`). De widget in de pagina laadt die met een dynamic import via `chrome.runtime.getURL`, wat kan omdat ze in de manifest als `web_accessible_resources` staan. Zo kan de widget niet meer stil van het toolbar-icoon afwijken. De widget tekent daardoor nu exact dezelfde ring als het icoon (vóór deze refactor liep de ring 3% ruimer en 1,5px dunner).
+- De eerste controle op de fallback-animatie loopt via een **eenmalig alarm** in plaats van een `setTimeout`: een service worker kan worden gesuspendeerd, waardoor een timer nooit vuurt. De keepalive loopt **om de minuut** in plaats van elke 30 seconden — genoeg om een dood offscreen document op te merken, zonder de service worker de hele werkdag wakker te houden.
 - De ademhalingscyclus is **tijdgestabiliseerd**: het begin van de cyclus (`cycleStartedAt`) staat in `chrome.storage.local`, zodat het toolbar-icoon, de widget in de pagina en de fallback-lus dezelfde fase tonen — ook nadat de service worker of het offscreen document opnieuw is gestart.
 - De adem-herinnering bewaart een `remindUntil`-tijdstip; een onderbroken sessie laat de herinnering dus niet permanent aanstaan.
 - **Geen rechten op websites** — de content script toont alleen de widget/het kader; er wordt geen pagina-inhoud gelezen of verzonden. Zie de privacyparagraaf hierboven voor de precieze formulering.
@@ -79,12 +83,13 @@ Wijzigingen zijn **direct actief** — geen herladen nodig.
 | Bestand | Functie |
 |---|---|
 | `manifest.json` | Extensie-definitie (MV3) + opties-pagina |
-| `cycle.js` | Ademhalingscyclus (inhale/hold/exhale) + standaardinstellingen |
-| `icon-renderer.js` | Gedeelde icoon-rendering (canvas) + kleurenpaletten + tooltips |
+| `cycle.js` | Ademhalingscyclus (inhale/hold/exhale) + standaardinstellingen (bron van waarheid) |
+| `drawing.js` | Gedeelde tekenprimitieven: kleurenpaletten, pictogrammen, ademhalingsring |
+| `icon-renderer.js` | Icoon-rendering op basis van `drawing.js` + tooltips |
 | `offscreen.html` + `offscreen.js` | Animatielus (rAF) → stuurt frames naar de service worker |
 | `background.js` | Service worker: offscreen, fallback-lus, alarms (water/adem/keepalive), state |
 | `widget.js` | Discrete verplaatsbare widget in elke pagina (content script) |
 | `options.html` + `options.js` | Opties-pagina (tijden, widget, kleuren, herinneringen) |
 | `icons/` | Statische extensie-iconen (16/32/48/128 px) |
 | `tools/gen-icons.mjs` | Script om de iconen opnieuw te genereren (`npm run icons`) |
-| `test/cycle.test.js` + `test/background.test.js` | Tests voor de ademhalingslogica en de service worker (`npm test`) |
+| `test/cycle.test.js` + `test/background.test.js` + `test/drawing.test.js` | Tests voor de cyclus, de service worker en de gedeelde tekenmodule (`npm test`) |

@@ -151,7 +151,11 @@ function syncAlarms() {
 }
 
 chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === 'breathe-keepalive') {
+  if (alarm.name === 'breathe-fallback-check') {
+    // De grace-period is voorbij: als er nog steeds geen frame binnenkwam,
+    // werkt het offscreen document niet en tekenen we zelf.
+    if (!gotFrame) startSwLoop();
+  } else if (alarm.name === 'breathe-keepalive') {
     ensureOffscreen();
     // Een frame dat lang geleden binnenkwam bewijst niets: het offscreen
     // document kan sindsdien gecrasht zijn. Beschouw het als dood zodra er
@@ -224,10 +228,14 @@ function stopSwLoop() {
   }
 }
 
+/**
+ * Zet de fallback in na een korte grace-period, maar via een ALARM in plaats
+ * van een setTimeout: een service worker kan worden gesuspendeerd, waardoor een
+ * lopende timer nooit vuurt. Een alarm overleeft suspendering wel. De keepalive
+ * controleert daarnaast elke minuut, dus dit is alleen de snelle eerste check.
+ */
 function armFallback() {
-  setTimeout(() => {
-    if (!gotFrame) startSwLoop();
-  }, FALLBACK_DELAY_MS);
+  chrome.alarms.create('breathe-fallback-check', { when: Date.now() + FALLBACK_DELAY_MS });
 }
 
 /** Pauzeren/hervatten — ook gebruikt door de klik op het toolbar-icoon. */
@@ -241,6 +249,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     gotFrame = true;
     lastFrameAt = Date.now();
     stopSwLoop(); // offscreen werkt — fallback uitzetten
+    chrome.alarms.clear('breathe-fallback-check'); // eenmalige check is niet meer nodig
     try {
       chrome.action.setIcon({ imageData: msg.imageData });
     } catch (e) {
@@ -304,8 +313,13 @@ chrome.runtime.onStartup.addListener(() => {
   restartCycle();
 });
 
-// keepalive: wekt de SW periodiek en herstelt de fallback-lus na slaap
-chrome.alarms.create('breathe-keepalive', { periodInMinutes: 0.5 });
+// Keepalive: herstelt de fallback-lus na slaap en ruimt een overlijden
+// offscreen-document op. Eens per minuut is genoeg: het offscreen document
+// verzendt frames zodra het hersteld is, en de herinneringsalarms staan op
+// eigen intervallen. Een kortere periode zou de service worker permanent
+// wakker houden, wat op een laptop gedurende de werkdag merkbaar is voor de
+// batterij. Let op: periodInMinutes krijgt een minimum van 0.5 bij het opslaan.
+chrome.alarms.create('breathe-keepalive', { periodInMinutes: 1 });
 
 // Klik op het toolbar-icoon (geen popup):
 // - bij een actieve herinnering = bevestigen (water > opstaan > ogen)
