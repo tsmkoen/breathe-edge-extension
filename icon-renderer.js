@@ -13,7 +13,14 @@ import {
   drawBreathRing,
 } from './drawing.js';
 
-export const SIZES = [16, 32, 64];
+// Alleen de formaten die de toolbar echt gebruikt. Een 64px-frame is 16 keer
+// zo groot als een 16px-frame en vormt 76% van het volume per frame, terwijl de
+// toolbar-icoon op hoge DPI-schermen al met 32px goed oogt. Bij twintig frames per
+// seconde scheelt het laten van 64px ongeveer 320 KB/s aan berichten tussen het
+// offscreen document en de service worker. Wie het liever scherp heeft op 4K kan
+// 64 weer toevoegen via SIZES_EXTRA.
+export const SIZES = [16, 32];
+export const SIZES_EXTRA = [64];
 export { PALETTES };
 
 /**
@@ -57,10 +64,10 @@ export function drawIcon(ctx, size, state) {
   drawBreathRing(ctx, size, state.phase, state.progress, pal, { halo: state.remind && inBreathMode });
 }
 
-/** Rendert de icoon-frames voor alle formaten en geeft {16, 32, 64} ImageData terug. */
-export function renderImageData(state) {
+/** Rendert de icoon-frames voor alle formaten en geeft {16: ImageData, ...} terug. */
+export function renderImageData(state, extraSizes = []) {
   const imageData = {};
-  for (const size of SIZES) {
+  for (const size of [...SIZES, ...extraSizes]) {
     const canvas = new OffscreenCanvas(size, size);
     const ctx = canvas.getContext('2d');
     drawIcon(ctx, size, state);

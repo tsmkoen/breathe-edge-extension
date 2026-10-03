@@ -49,6 +49,23 @@ jobs:
             console.log('web_accessible_resources OK, minimum_chrome_version', m.minimum_chrome_version);
           "
 
+      # Het frame-volume hoort laag te blijven: het icoon verstuurt twintig
+      # keer per seconde pixels naar de service worker. Een onnodig groot
+      # formaat of het opnieuw tekenen van een statisch icoon is hier duur.
+      - name: Frame-volume blijft beperkt
+        run: |
+          node -e "
+            import('./icon-renderer.js').then(({ SIZES }) => {
+              const bytes = SIZES.reduce((sum, s) => sum + s * s * 4, 0);
+              const perSecond = (bytes * 20) / 1024;
+              console.log('formaten', SIZES.join(', '), '=', perSecond.toFixed(0), 'KB/s bij 20fps');
+              if (perSecond > 150) {
+                console.error('frame-volume te hoog; verklein SIZES in icon-renderer.js');
+                process.exit(1);
+              }
+            });
+          "
+
       # Voorkomt dat de gedeelde tekenaars of de paletten per bestand gaan
       # dupliceren — precies de drift die deze refactor oplostte.
       - name: Gedeelde tekencode is niet gedupliceerd
