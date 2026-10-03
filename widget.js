@@ -7,10 +7,13 @@
   window.__breatheWidgetInstalled = true;
 
   // --- defaults + formule (duplicaat van cycle.js; content scripts kunnen geen modules laden) ---
+  // Let op: dit blok is een duplicaat van DEFAULT_SETTINGS in cycle.js, omdat een
+  // content script geen modules kan laden. Houd het synchroon — DEFAULT_SETTINGS
+  // is de enige bron van waarheid (o.a. waterReminderMin: 60).
   const DEFAULTS = {
     inhaleSec: 4, holdSec: 0, exhaleSec: 6,
     widgetEnabled: false, widgetSize: 26, pageFrame: true, colors: 'default',
-    waterReminderMin: 0, breatheReminderMin: 0, eyeReminderMin: 20, standReminderMin: 60,
+    waterReminderMin: 60, breatheReminderMin: 0, eyeReminderMin: 20, standReminderMin: 60,
   };
   function makeCycle(s) {
     const inhaleMs = Math.max(1, Math.round(s.inhaleSec)) * 1000;
@@ -41,6 +44,7 @@
   let remind = false;
   let eyeDue = false;
   let standDue = false;
+  let cycleStartedAt = 0;
   let cycle = makeCycle(settings);
   let lastTitleKey = '';
 
@@ -152,13 +156,21 @@
   }
 
   // --- state uit storage (content scripts mogen storage wél gebruiken) ---
-  chrome.storage.local.get(['settings', 'paused', 'waterDue', 'remind', 'eyeDue', 'standDue', 'widgetPos']).then((v) => {
+  /** Tijdgestabiliseerde cyclus: loopt gelijk met het toolbar-icoon. */
+  function cycleElapsed() {
+    return cycleStartedAt ? Date.now() - cycleStartedAt : 0;
+  }
+
+  chrome.storage.local.get(['settings', 'paused', 'waterDue', 'remind', 'remindUntil', 'eyeDue', 'standDue', 'widgetPos', 'cycleStartedAt']).then((v) => {
     if (v.settings) settings = { ...DEFAULTS, ...v.settings };
     paused = !!v.paused;
     waterDue = !!v.waterDue;
-    remind = !!v.remind;
+    // De adem-herinnering is tijdelijk: een `remind` zonder geldig `remindUntil`
+    // is een achtergebleven restje van een afgebroken sessie en wordt genegeerd.
+    remind = !!v.remind && typeof v.remindUntil === 'number' && v.remindUntil > Date.now();
     eyeDue = !!v.eyeDue;
     standDue = !!v.standDue;
+    cycleStartedAt = v.cycleStartedAt || Date.now();
     if (v.widgetPos) {
       wrap.style.right = 'auto';
       wrap.style.bottom = 'auto';
@@ -185,8 +197,13 @@
     if (changes.paused) paused = !!changes.paused.newValue;
     if (changes.waterDue) waterDue = !!changes.waterDue.newValue;
     if (changes.remind) remind = !!changes.remind.newValue;
+    if (changes.remindUntil) {
+      const until = typeof changes.remindUntil.newValue === 'number' ? changes.remindUntil.newValue : 0;
+      remind = remind && until > Date.now();
+    }
     if (changes.eyeDue) eyeDue = !!changes.eyeDue.newValue;
     if (changes.standDue) standDue = !!changes.standDue.newValue;
+    if (changes.cycleStartedAt) cycleStartedAt = changes.cycleStartedAt.newValue || Date.now();
     updateFrame();
     updateTitle();
   });
@@ -245,7 +262,7 @@
     ctx.fillRect(CANVAS / 2 + r * 0.25, CANVAS / 2 - r * 0.85, r * 0.5, r * 1.7);
   }
 
-  function draw(now) {
+  function draw() {
     const pal = PALETTES[settings.colors === 'soft' ? 'soft' : 'default'];
     ctx.clearRect(0, 0, CANVAS, CANVAS);
     const cx = CANVAS / 2;
@@ -274,7 +291,7 @@
     }
 
     // ademhalingsring
-    const { phase, progress } = cycle.phaseAt(now);
+    const { phase, progress } = cycle.phaseAt(cycleElapsed());
     const stroke = CANVAS * 0.1;
     const radius = CANVAS / 2 - CANVAS * 0.07;
     const mid = radius - stroke / 2;
@@ -313,9 +330,9 @@
     ctx.fill();
   }
 
-  function loop(now) {
+  function loop() {
     if (!mounted) return;
-    draw(now);
+    draw();
     requestAnimationFrame(loop);
   }
 

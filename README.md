@@ -12,6 +12,8 @@ Een persoonlijke extensie voor Microsoft Edge (en Chrome) waarmee je **discreet 
 
 🔒 **Privacy:** de extensie maakt **geen enkele internetverbinding**. Geen telemetrie, geen accounts, geen externe servers — alles draait lokaal in je browser.
 
+De extensie injecteert een klein, niet-selecteerbaar script op elke pagina (`<all_urls>`), maar dat script **leest en verstuurt niets**: het tekent alleen de ademhalingsring en leest de eigen instellingen uit `chrome.storage.local`. Er staan geen host-permissies of netwerkrechten in de manifest. De injectie is nodig omdat de widget en het herinneringskader in de pagina getekend moeten worden — en is per extensie uit te schakelen door hem op een enkele site toe te laten draaien.
+
 ## Installatie (Edge)
 
 1. **Download** deze repository als ZIP: groene knop **Code** → **Download ZIP**
@@ -21,7 +23,7 @@ Een persoonlijke extensie voor Microsoft Edge (en Chrome) waarmee je **discreet 
 5. Klik **Load unpacked** → selecteer de uitgepakte map
 6. **Pin de extensie** aan de werkbalk: puzzelstukje-icoon → speld 📌 naast *Breathe*
 
-> **Update installeren?** Verwijder de oude extensie eerst (of pak de nieuwe ZIP over de oude map uit) en klik **reload** op `edge://extensions`. Controleer dat de versie rechtsboven `1.3.0` is.
+> **Update installeren?** Verwijder de oude extensie eerst (of pak de nieuwe ZIP over de oude map uit) en klik **reload** op `edge://extensions`. Controleer dat de versie rechtsboven overeenkomt met `version` in `manifest.json`.
 
 ## Gebruik
 
@@ -68,7 +70,9 @@ Wijzigingen zijn **direct actief** — geen herladen nodig.
 
 - **Manifest V3.** MV3-service workers worden door Edge/Chrome na ~30s in slaap gezet; daarom draait de animatie primair in een **offscreen document** (`rAF`-lus) dat frames naar de service worker stuurt. Een **fallback-lus in de service worker** + **keepalive-alarm** zorgen dat het icoon blijft bewegen, ook als offscreen niet beschikbaar is.
 - State (pauze, water, reminder, instellingen) via `chrome.storage.local`; het offscreen document krijgt state via berichten (offscreen documenten hebben geen storage-toegang).
-- **Geen rechten op websites** — content script toont alleen de widget; er wordt niets gelezen of verzonden.
+- De ademhalingscyclus is **tijdgestabiliseerd**: het begin van de cyclus (`cycleStartedAt`) staat in `chrome.storage.local`, zodat het toolbar-icoon, de widget in de pagina en de fallback-lus dezelfde fase tonen — ook nadat de service worker of het offscreen document opnieuw is gestart.
+- De adem-herinnering bewaart een `remindUntil`-tijdstip; een onderbroken sessie laat de herinnering dus niet permanent aanstaan.
+- **Geen rechten op websites** — de content script toont alleen de widget/het kader; er wordt geen pagina-inhoud gelezen of verzonden. Zie de privacyparagraaf hierboven voor de precieze formulering.
 
 ## Bestanden
 
@@ -82,4 +86,5 @@ Wijzigingen zijn **direct actief** — geen herladen nodig.
 | `widget.js` | Discrete verplaatsbare widget in elke pagina (content script) |
 | `options.html` + `options.js` | Opties-pagina (tijden, widget, kleuren, herinneringen) |
 | `icons/` | Statische extensie-iconen (16/32/48/128 px) |
-| `tools/gen-icons.mjs` | Script om de iconen opnieuw te genereren |
+| `tools/gen-icons.mjs` | Script om de iconen opnieuw te genereren (`npm run icons`) |
+| `test/cycle.test.js` + `test/background.test.js` | Tests voor de ademhalingslogica en de service worker (`npm test`) |

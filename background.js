@@ -1,8 +1,8 @@
 // Breathe — background service worker (Manifest V3, module)
 //
 // Primair draait de animatie in een offscreen document (blijft actief, rAF).
-// FALLBACK: als er binnen FALLBACK_DELAY_MS geen frames van het offscreen
-// document binnenkomen, draait deze SW zelf een animatielus met OffscreenCanvas.
+// FALLBACK: als er geen frames van het offscreen document binnenkomen, draait
+// deze SW zelf een animatielus met OffscreenCanvas.
 // Alarms: keepalive (SW wekken), water-reminder, adem-reminder.
 // State (pauze/water/reminder/instellingen) staat in chrome.storage.local en
 // wordt naar het offscreen document gebroadcast via berichten.
@@ -13,14 +13,19 @@ const OFFSCREEN_URL = 'offscreen.html';
 const FALLBACK_DELAY_MS = 3000;
 const FALLBACK_TICK_MS = 50;
 const REMIND_DURATION_MS = 60000; // adem-reminder zichtbaar gedurende 1 minuut
+const STALE_FRAME_MS = 10000; // geen frame > 10s => offscreen is dood, val terug
+const MIGRATED_WIDGET_VERSION = '1.6.0'; // vanaf hier staat de widget standaard uit
 
 let settings = { ...DEFAULT_SETTINGS };
 let paused = false;
 let waterDue = false;
 let remind = false;
+let remindUntil = 0;
 let eyeDue = false;
 let standDue = false;
+let cycleStartedAt = 0;
 let gotFrame = false;
+let lastFrameAt = 0;
 let swLoopTimer = null;
 let cycleCache = null;
 
@@ -29,32 +34,63 @@ function getCycle() {
   if (!cycleCache) cycleCache = cycleFromSettings(settings);
   return cycleCache;
 }
+/** Verstreken tijd sinds het begin van de cyclus — tijdgestabiliseerd via opslag,
+ *  zodat het icoon, de widget en de SW-fallback dezelfde fase tonen. */
+function cycleElapsed() {
+  return cycleStartedAt ? Date.now() - cycleStartedAt : 0;
+}
 function currentState() {
   return { paused, waterDue, remind, eyeDue, standDue, settings, cycle: getCycle() };
 }
 function broadcastState() {
-  chrome.runtime.sendMessage({ type: 'state', paused, waterDue, remind, eyeDue, standDue, settings }).catch?.(() => {});
+  chrome.runtime
+    .sendMessage({ type: 'state', paused, waterDue, remind, eyeDue, standDue, settings, cycleStartedAt })
+    .catch?.(() => {});
 }
 
 // --- state laden + wijzigingen volgen ---
-chrome.storage.local.get(['settings', 'paused', 'waterDue', 'remind', 'eyeDue', 'standDue']).then((v) => {
-  if (v.settings) settings = { ...DEFAULT_SETTINGS, ...v.settings };
-  paused = !!v.paused;
-  waterDue = !!v.waterDue;
-  remind = !!v.remind;
-  eyeDue = !!v.eyeDue;
-  standDue = !!v.standDue;
-  cycleCache = null;
-  syncAlarms();
-});
+chrome.storage.local
+  .get(['settings', 'paused', 'waterDue', 'remind', 'remindUntil', 'eyeDue', 'standDue', 'cycleStartedAt'])
+  .then((v) => {
+    if (v.settings) settings = { ...DEFAULT_SETTINGS, ...v.settings };
+    paused = !!v.paused;
+    waterDue = !!v.waterDue;
+    eyeDue = !!v.eyeDue;
+    standDue = !!v.standDue;
+    cycleStartedAt = v.cycleStartedAt || Date.now();
+
+    // De adem-herinnering is tijdelijk: hij mag niet blijven plakken wanneer de
+    // browser is herstart of gesloten terwijl hij actief was. `remindUntil` is
+    // het enige gezaghebbende gegeven — `remind` volgt daaruit.
+    remindUntil = typeof v.remindUntil === 'number' ? v.remindUntil : 0;
+    if (remindUntil > Date.now()) {
+      remind = true;
+      // her-arm de uitzetter voor de resterende tijd
+      chrome.alarms.create('breathe-remind-off', { when: remindUntil });
+    } else {
+      remind = false;
+      if (v.remind || remindUntil) chrome.storage.local.set({ remind: false, remindUntil: 0 });
+      remindUntil = 0;
+    }
+
+    cycleCache = null;
+    syncAlarms();
+  });
 
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== 'local') return;
   let dirty = false;
   if (changes.settings) {
+    const prev = settings;
     settings = { ...DEFAULT_SETTINGS, ...changes.settings.newValue };
     cycleCache = null;
     dirty = true;
+    // Nieuwe ademtijden => nieuwe cyclus vanaf nu, zodat de fase consistent blijft.
+    const patternChanged =
+      prev.inhaleSec !== settings.inhaleSec ||
+      prev.holdSec !== settings.holdSec ||
+      prev.exhaleSec !== settings.exhaleSec;
+    if (patternChanged) restartCycle();
     syncAlarms();
   }
   if (changes.paused) {
@@ -69,6 +105,10 @@ chrome.storage.onChanged.addListener((changes, area) => {
     remind = !!changes.remind.newValue;
     dirty = true;
   }
+  if (changes.remindUntil) {
+    remindUntil = typeof changes.remindUntil.newValue === 'number' ? changes.remindUntil.newValue : 0;
+    dirty = true;
+  }
   if (changes.eyeDue) {
     eyeDue = !!changes.eyeDue.newValue;
     dirty = true;
@@ -77,8 +117,18 @@ chrome.storage.onChanged.addListener((changes, area) => {
     standDue = !!changes.standDue.newValue;
     dirty = true;
   }
+  if (changes.cycleStartedAt) {
+    cycleStartedAt = changes.cycleStartedAt.newValue || Date.now();
+    dirty = true;
+  }
   if (dirty) broadcastState();
 });
+
+/** Start de cyclus opnieuw vanaf nu (nieuw patroon, installatie of herstart). */
+function restartCycle() {
+  cycleStartedAt = Date.now();
+  chrome.storage.local.set({ cycleStartedAt }).catch?.(() => {});
+}
 
 // --- alarms ---
 function syncAlarms() {
@@ -103,16 +153,26 @@ function syncAlarms() {
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === 'breathe-keepalive') {
     ensureOffscreen();
+    // Een frame dat lang geleden binnenkwam bewijst niets: het offscreen
+    // document kan sindsdien gecrasht zijn. Beschouw het als dood zodra er
+    // te lang geen frame is geweest, anders blijft de fallback voor altijd uit.
+    if (gotFrame && Date.now() - lastFrameAt > STALE_FRAME_MS) {
+      gotFrame = false;
+      console.warn('[Breathe] geen offscreen-frame sinds', Date.now() - lastFrameAt, 'ms');
+    }
     if (!gotFrame && !swLoopTimer) startSwLoop();
   } else if (alarm.name === 'breathe-water') {
     chrome.storage.local.set({ waterDue: true });
   } else if (alarm.name === 'breathe-remind') {
-    chrome.storage.local.set({ remind: true });
-    chrome.alarms.create('breathe-remind-off', { when: Date.now() + REMIND_DURATION_MS });
+    const until = Date.now() + REMIND_DURATION_MS;
+    remindUntil = until;
+    chrome.alarms.create('breathe-remind-off', { when: until });
+    chrome.storage.local.set({ remind: true, remindUntil: until });
   } else if (alarm.name === 'breathe-remind-off') {
-    chrome.storage.local.set({ remind: false });
+    remindUntil = 0;
+    chrome.storage.local.set({ remind: false, remindUntil: 0 });
   } else if (alarm.name === 'breathe-eye') {
-    // 20-20-20: blijft actief tot de gebruiker bevestigt (klik op violette widget)
+    // 20-20-20: blijft actief tot de gebruiker bevestigt (klik op het icoon)
     chrome.storage.local.set({ eyeDue: true });
   } else if (alarm.name === 'breathe-stand') {
     chrome.storage.local.set({ standDue: true });
@@ -145,7 +205,7 @@ function startSwLoop() {
     if (!swLoopTimer) return;
     try {
       const cycle = getCycle();
-      const { phase, progress } = cycle.phaseAt(performance.now());
+      const { phase, progress } = cycle.phaseAt(cycleElapsed());
       const st = { ...currentState(), phase, progress };
       chrome.action.setIcon({ imageData: renderImageData(st) }).catch?.(() => {});
       chrome.action.setTitle({ title: titleFor(st) }).catch?.(() => {});
@@ -170,10 +230,16 @@ function armFallback() {
   }, FALLBACK_DELAY_MS);
 }
 
+/** Pauzeren/hervatten — ook gebruikt door de klik op het toolbar-icoon. */
+function togglePause() {
+  chrome.storage.local.set({ paused: !paused }).catch?.(() => {});
+}
+
 // --- berichten ---
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg?.type === 'frame') {
     gotFrame = true;
+    lastFrameAt = Date.now();
     stopSwLoop(); // offscreen werkt — fallback uitzetten
     try {
       chrome.action.setIcon({ imageData: msg.imageData });
@@ -183,7 +249,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     const st = { ...currentState(), phase: msg.phase, progress: msg.progress };
     chrome.action.setTitle({ title: titleFor(st) }).catch?.(() => {});
   } else if (msg?.type === 'getState') {
-    sendResponse({ paused, waterDue, remind, eyeDue, standDue, settings });
+    sendResponse({ paused, waterDue, remind, eyeDue, standDue, settings, cycleStartedAt });
   } else if (msg?.type === 'togglePause') {
     togglePause();
   } else if (msg?.type === 'waterDrunk') {
@@ -197,13 +263,31 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 });
 
+/** Vergelijkt twee semvers-achtige versies. */
+function isOlderThan(version, target) {
+  const a = String(version || '0').split('.').map((n) => parseInt(n, 10) || 0);
+  const b = String(target).split('.').map((n) => parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    const av = a[i] || 0;
+    const bv = b[i] || 0;
+    if (av !== bv) return av < bv;
+  }
+  return false;
+}
+
 // --- levenscyclus ---
 chrome.runtime.onInstalled.addListener((details) => {
   ensureOffscreen();
   armFallback();
-  // Migratie (v1.6.0): widget in de pagina staat standaard uit — alles loopt
-  // via het toolbar-icoon. Zet bestaande installaties ook om.
-  if (details.reason === 'install' || details.reason === 'update') {
+
+  const fresh = details.reason === 'install';
+  if (fresh) restartCycle();
+
+  // Migratie (v1.6.0): de widget in de pagina ging standaard uit. Dit mag EENMALIG
+  // gebeuren — anders zou elke update de keuze van de gebruiker overschrijven.
+  if (details.reason === 'update' && details.previousVersion &&
+      isOlderThan(details.previousVersion, MIGRATED_WIDGET_VERSION)) {
+    console.log(`[Breathe] migratie ${details.previousVersion} -> ${MIGRATED_WIDGET_VERSION}: widget uit`);
     chrome.storage.local.get('settings').then((v) => {
       const s = { ...DEFAULT_SETTINGS, ...(v.settings || {}) };
       s.widgetEnabled = false;
@@ -211,9 +295,13 @@ chrome.runtime.onInstalled.addListener((details) => {
     });
   }
 });
+
 chrome.runtime.onStartup.addListener(() => {
   ensureOffscreen();
   armFallback();
+  // Nieuwe browsersessie: de ademhalingscyclus begint opnieuw, zodat het icoon
+  // niet midden in een fase "vast blijft staan".
+  restartCycle();
 });
 
 // keepalive: wekt de SW periodiek en herstelt de fallback-lus na slaap
@@ -231,7 +319,7 @@ chrome.action.onClicked.addListener(() => {
     } else if (v.eyeDue) {
       chrome.storage.local.set({ eyeDue: false }); // "weggekeken"
     } else {
-      chrome.storage.local.set({ paused: !v.paused });
+      togglePause();
     }
   });
 });

@@ -17,6 +17,7 @@ let state = {
   eyeDue: false,
   standDue: false,
   settings: { ...DEFAULT_SETTINGS },
+  cycleStartedAt: 0,
 };
 let cycleCache = null;
 let lastSent = 0;
@@ -33,6 +34,7 @@ function applyState(s) {
   state.remind = !!s.remind;
   state.eyeDue = !!s.eyeDue;
   state.standDue = !!s.standDue;
+  if (typeof s.cycleStartedAt === 'number' && s.cycleStartedAt) state.cycleStartedAt = s.cycleStartedAt;
   if (s.settings) {
     state.settings = { ...DEFAULT_SETTINGS, ...s.settings };
     cycleCache = null;
@@ -61,9 +63,14 @@ chrome.runtime.onMessage.addListener((msg) => {
   if (msg?.type === 'state') applyState(msg);
 });
 
-function frame(now) {
+function frame() {
   const cycle = getCycle();
-  const { phase, progress } = cycle.phaseAt(now);
+  // Tijdgestabiliseerd: niet de rAF-timestamp (relatief aan dit document) maar
+  // de tijd sinds het begin van de cyclus, zoals bijgehouden door de SW. Zo loopt
+  // het icoon gelijk met de widget en herstart het op dezelfde fase.
+  const elapsed = state.cycleStartedAt ? Date.now() - state.cycleStartedAt : 0;
+  const { phase, progress } = cycle.phaseAt(elapsed);
+  const now = performance.now();
   if (now - lastSent >= TICK_MS) {
     lastSent = now;
     sendMessageSafe({

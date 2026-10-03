@@ -1,18 +1,10 @@
 // Breathe — opties-pagina: laadt en bewaart instellingen in chrome.storage.local.
+// De standaardinstellingen komen uit cycle.js (dezelfde bron als de service
+// worker), zodat ze niet kunnen uit elkaar lopen.
+import { DEFAULT_SETTINGS } from './cycle.js';
+
 (() => {
-  const DEFAULTS = {
-    inhaleSec: 4,
-    holdSec: 0,
-    exhaleSec: 6,
-    widgetEnabled: false,
-    widgetSize: 26,
-    pageFrame: true,
-    colors: 'default',
-    waterReminderMin: 60,
-    breatheReminderMin: 0,
-    eyeReminderMin: 20,
-    standReminderMin: 60,
-  };
+  const DEFAULTS = DEFAULT_SETTINGS;
 
   const $ = (id) => document.getElementById(id);
   const statusEl = $('status');
