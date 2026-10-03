@@ -9,7 +9,10 @@ export const DEFAULT_SETTINGS = {
   widgetSize: 26, // px
   pageFrame: true, // subtiel kader rond het venster bij een actieve herinnering
   colors: 'default', // 'default' | 'soft'
-  waterReminderMin: 0, // 0 = uit
+  // Let op: dit is de enige bron van waarheid voor de standaardinstellingen.
+  // options.js importeert DEFAULT_SETTINGS; widget.js dupliceert ze omdat een
+  // content script geen modules kan laden — houd dat blok synchroon.
+  waterReminderMin: 60, // 0 = uit — standaard "elk uur", zoals de opties-pagina liet zien
   breatheReminderMin: 0, // 0 = uit
   eyeReminderMin: 20, // 20-20-20 oogregel: 0 = uit
   standReminderMin: 60, // opsta-herinnering: 0 = uit

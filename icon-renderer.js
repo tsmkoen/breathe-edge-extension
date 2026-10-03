@@ -177,10 +177,11 @@ export function renderImageData(state) {
 
 /** Tooltip-tekst op basis van de huidige toestand. */
 export function titleFor(state) {
-  if (state.waterDue) return '💧 Tijd voor een glas water — klik op de widget om te bevestigen';
-  if (state.standDue) return '🧍 Tijd om even op te staan en te bewegen — klik op de widget om te bevestigen';
-  if (state.eyeDue) return '👀 20-20-20: kijk 20 seconden in de verte — klik op de widget om te bevestigen';
-  if (state.paused) return 'Breathe — gepauzeerd (klik om te hervatten)';
+  // NB: deze tooltip hoort bij het TOOLBAR-ICOON, niet bij de widget in de pagina.
+  if (state.waterDue) return '💧 Tijd voor een glas water — klik op het icoon om te bevestigen';
+  if (state.standDue) return '🧍 Tijd om even op te staan en te bewegen — klik op het icoon om te bevestigen';
+  if (state.eyeDue) return '👀 20-20-20: kijk 20 seconden in de verte — klik op het icoon om te bevestigen';
+  if (state.paused) return 'Breathe — gepauzeerd (klik op het icoon om te hervatten)';
   if (state.remind) return 'Breathe — tijd voor een paar rustige ademhalingen';
   const c = state.cycle || {};
   const sec = (ms) => Math.round((ms || 0) / 1000);

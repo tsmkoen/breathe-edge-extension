@@ -1,0 +1,28 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # De extensie heeft geen runtime-afhankelijkheden; alleen Node zelf.
+      - name: Tests
+        run: npm test
+
+      - name: Iconen opnieuw genereren mogen identiek zijn
+        run: |
+          node tools/gen-icons.mjs
+          git diff --exit-code -- icons/
+
+      - name: Manifest en package.json zijn geldig JSON met dezelfde versie
+        run: node -e "const m=require('./manifest.json'),p=require('./package.json');if(m.version!==p.version){console.error('versies lopen uiteen:',m.version,p.version);process.exit(1)}console.log('versie',m.version)"

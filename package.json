@@ -1,0 +1,12 @@
+{
+  "name": "breathe-extension",
+  "version": "1.8.0",
+  "private": true,
+  "description": "Rustige ademhaling tijdens de werkdag — Chrome/Edge MV3-extensie",
+  "type": "module",
+  "scripts": {
+    "test": "node --test --test-force-exit \"test/*.test.js\"",
+    "icons": "node tools/gen-icons.mjs"
+  },
+  "license": "MIT"
+}
