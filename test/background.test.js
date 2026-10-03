@@ -1,6 +1,12 @@
 // Gedragstests voor de service worker (background.js). Hiermee worden de fixes
 // op de remind-logica, de fallback-detectie en de eenmalige migratie afgedekt.
 //
+// NB: de tests draaien met `node --test --test-force-exit` (zie package.json).
+// background.js start een animatielus die oneindig doorloopt zolang de service
+// worker leeft — net als in de echte browser. Zonder die vlag zou de Node-
+// eventloop nooit leeg worden en zou de testrunner blijven hangen. De lus is
+// bedoeld gedrag, geen lek; de assertions daarboven sluiten hem bewust af.
+//
 // background.js is pure browser-code, maar de beslissingen die we willen
 // controleren (remind die niet mag plakken, migratie die éénmalig is, fallback
 // die weer aangaat) zijn pure functies van storage + alarms. Daarom injecteren
