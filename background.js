@@ -66,7 +66,7 @@ chrome.storage.local
     if (remindUntil > Date.now()) {
       remind = true;
       // her-arm de uitzetter voor de resterende tijd
-      chrome.alarms.create('breathe-remind-off', { when: remindUntil });
+      chrome.alarms.create('breathe-remind-off', { when: remindUntil, ...PERSIST });
     } else {
       remind = false;
       if (v.remind || remindUntil) chrome.storage.local.set({ remind: false, remindUntil: 0 });
@@ -131,22 +131,29 @@ function restartCycle() {
 }
 
 // --- alarms ---
+// persistAcrossSessions zetten we expliciet: de vlag bestaat sinds Chrome 150 en
+// de documentatie raadt aan hem altijd te zetten voor maximale compatibiliteit
+// met andere browsers. Zonder de vlag is het gedrag in oudere versies
+// onvoorspelbaar, wat o.a. betekende dat het eenmalige remind-off-alarm na een
+// herstart kon verdwijnen.
+const PERSIST = { persistAcrossSessions: true };
+
 function syncAlarms() {
   chrome.alarms.clear('breathe-water');
   if (settings.waterReminderMin > 0) {
-    chrome.alarms.create('breathe-water', { periodInMinutes: settings.waterReminderMin });
+    chrome.alarms.create('breathe-water', { periodInMinutes: settings.waterReminderMin, ...PERSIST });
   }
   chrome.alarms.clear('breathe-remind');
   if (settings.breatheReminderMin > 0) {
-    chrome.alarms.create('breathe-remind', { periodInMinutes: settings.breatheReminderMin });
+    chrome.alarms.create('breathe-remind', { periodInMinutes: settings.breatheReminderMin, ...PERSIST });
   }
   chrome.alarms.clear('breathe-eye');
   if (settings.eyeReminderMin > 0) {
-    chrome.alarms.create('breathe-eye', { periodInMinutes: settings.eyeReminderMin });
+    chrome.alarms.create('breathe-eye', { periodInMinutes: settings.eyeReminderMin, ...PERSIST });
   }
   chrome.alarms.clear('breathe-stand');
   if (settings.standReminderMin > 0) {
-    chrome.alarms.create('breathe-stand', { periodInMinutes: settings.standReminderMin });
+    chrome.alarms.create('breathe-stand', { periodInMinutes: settings.standReminderMin, ...PERSIST });
   }
 }
 
@@ -170,7 +177,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   } else if (alarm.name === 'breathe-remind') {
     const until = Date.now() + REMIND_DURATION_MS;
     remindUntil = until;
-    chrome.alarms.create('breathe-remind-off', { when: until });
+    chrome.alarms.create('breathe-remind-off', { when: until, ...PERSIST });
     chrome.storage.local.set({ remind: true, remindUntil: until });
   } else if (alarm.name === 'breathe-remind-off') {
     remindUntil = 0;
@@ -184,20 +191,38 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 });
 
 // --- offscreen document beheren ---
+// `creating` voorkomt dat twee aanroepen elkaar in de weg zitten: de guard
+// `hasDocument()` is asynchroom, dus twee bijna gelijktijdige aanroepen (bv. het
+// keepalive-alarm en onStartup) kunnen allebei zien dat er nog geen document is
+// en dan allebei createDocument() aanroepen. Chrome staat maar EEN offscreen
+// document per extensie toe, dus de tweede faalt met een fout. De docs adviseren
+// precies deze guard.
+let creating = null;
+
 async function ensureOffscreen() {
   try {
     if (typeof chrome.offscreen?.hasDocument === 'function') {
       const has = await chrome.offscreen.hasDocument();
       if (has) return;
     }
-    await chrome.offscreen.createDocument({
+    if (creating) {
+      await creating;
+      return;
+    }
+    creating = chrome.offscreen.createDocument({
       url: OFFSCREEN_URL,
       reasons: ['BLOBS'],
       justification: 'Canvas-animatie (rAF) voor het geanimeerde Breathe toolbar-icoon.',
     });
+    await creating;
+    creating = null;
     console.log('[Breathe] offscreen document aangemaakt');
   } catch (e) {
-    console.error('[Breathe] offscreen document niet beschikbaar:', e?.message || e);
+    creating = null;
+    // Een reeds bestaand document is geen probleem: dat willen we toch al.
+    if (!/already/i.test(e?.message || '')) {
+      console.error('[Breathe] offscreen document niet beschikbaar:', e?.message || e);
+    }
   }
 }
 
@@ -235,7 +260,7 @@ function stopSwLoop() {
  * controleert daarnaast elke minuut, dus dit is alleen de snelle eerste check.
  */
 function armFallback() {
-  chrome.alarms.create('breathe-fallback-check', { when: Date.now() + FALLBACK_DELAY_MS });
+  chrome.alarms.create('breathe-fallback-check', { when: Date.now() + FALLBACK_DELAY_MS, ...PERSIST });
 }
 
 /** Pauzeren/hervatten — ook gebruikt door de klik op het toolbar-icoon. */
@@ -319,7 +344,7 @@ chrome.runtime.onStartup.addListener(() => {
 // eigen intervallen. Een kortere periode zou de service worker permanent
 // wakker houden, wat op een laptop gedurende de werkdag merkbaar is voor de
 // batterij. Let op: periodInMinutes krijgt een minimum van 0.5 bij het opslaan.
-chrome.alarms.create('breathe-keepalive', { periodInMinutes: 1 });
+chrome.alarms.create('breathe-keepalive', { periodInMinutes: 1, ...PERSIST });
 
 // Klik op het toolbar-icoon (geen popup):
 // - bij een actieve herinnering = bevestigen (water > opstaan > ogen)
