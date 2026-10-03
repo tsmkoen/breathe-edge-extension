@@ -28,6 +28,7 @@ let gotFrame = false;
 let lastFrameAt = 0;
 let swLoopTimer = null;
 let cycleCache = null;
+let lastVisual = ''; // vingerafdruk van het laatst getekende icoon
 
 // --- helpers ---
 function getCycle() {
@@ -275,12 +276,27 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     lastFrameAt = Date.now();
     stopSwLoop(); // offscreen werkt — fallback uitzetten
     chrome.alarms.clear('breathe-fallback-check'); // eenmalige check is niet meer nodig
-    try {
-      chrome.action.setIcon({ imageData: msg.imageData });
-    } catch (e) {
-      console.error('[Breathe] setIcon mislukt:', e);
-    }
+
+    // Bij een pauze of een herinnering staat het icoon stil: het is dan twintig
+    // keer per seconde precies dezelfde pixels. Door alleen te tekenen als er
+    // echt iets veranderd is, sparen we dat werk en de bijbehorende
+    // setIcon-aanroepen.
+    //
+    // De flags komen uit currentState() en niet uit losse modulevariabelen: die
+    // worden pas bijgewerkt zodra storage.onChanged vuurt, terwijl een frame
+    // besteld op basis van een zojuist gezette vlag anders één beeld te laat
+    // zou blijven hangen.
     const st = { ...currentState(), phase: msg.phase, progress: msg.progress };
+    const visual = [
+      msg.phase,
+      Math.round((msg.progress || 0) * 1000),
+      st.paused, st.waterDue, st.standDue, st.eyeDue, st.remind,
+    ].join(':');
+    if (visual !== lastVisual) {
+      lastVisual = visual;
+      chrome.action.setIcon({ imageData: msg.imageData }).catch?.(() => {});
+    }
+
     chrome.action.setTitle({ title: titleFor(st) }).catch?.(() => {});
   } else if (msg?.type === 'getState') {
     sendResponse({ paused, waterDue, remind, eyeDue, standDue, settings, cycleStartedAt });
